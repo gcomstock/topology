@@ -1,8 +1,6 @@
-import { useRef, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
-import * as THREE from 'three'
 import { useStore } from '../store'
 import { useTheme } from '../hooks'
 import { GroundGrid } from './GroundGrid'
@@ -26,11 +24,6 @@ export function Scene() {
   const theme = useTheme()
   const data = useStore((s) => s.data)
   const select = useStore((s) => s.select)
-  const dirRef = useRef<THREE.DirectionalLight>(null)
-
-  useEffect(() => {
-    // re-apply background when theme changes handled via key on Canvas color
-  }, [theme])
 
   if (!data) return null
 
@@ -47,7 +40,6 @@ export function Scene() {
 
       <ambientLight intensity={0.4} />
       <directionalLight
-        ref={dirRef}
         position={[8, 14, 6]}
         intensity={1.55}
         castShadow
