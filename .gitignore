@@ -1,0 +1,8 @@
+node_modules
+dist
+.DS_Store
+*.local
+# local verification drivers (headless browser smoke tests)
+drive.mjs
+drive-light.mjs
+probe.mjs

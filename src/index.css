@@ -1,0 +1,176 @@
+:root {
+  /* Dark theme tokens (default). Mirrored in src/theme.ts for the 3D scene. */
+  --bg-base: #0a0e14;
+  --bg-elevated: #0d1117;
+  --bg-elevated-2: #11161f;
+  --border: #1c2430;
+  --grid: #161b22;
+  --text-primary: #e6edf3;
+  --text-muted: #7d8590;
+  --text-faint: #484f58;
+  --accent: #2dd4bf;
+  --accent-blue: #58a6ff;
+  --health-good: #3fb950;
+  --health-mid: #d29922;
+  --health-bad: #f85149;
+  --warning: #e3b341;
+  --nodata: #484f58;
+  --glow-good: #3fb950;
+  --glow-bad: #ff6a5e;
+
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'IBM Plex Mono', monospace;
+  --sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --fs-data: 12px;
+  --fs-label: 11px;
+  --fs-tiny: 10px;
+  --fs-section: 11px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--mono);
+  font-size: var(--fs-data);
+  color: var(--text-primary);
+  background: var(--bg-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  position: relative;
+}
+
+button {
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--text-primary);
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 9px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+button:hover {
+  border-color: var(--accent);
+}
+button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-root {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.scene-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* The canvas region shrinks when the detail panel opens (ratio shift). */
+.canvas-host {
+  position: absolute;
+  inset: 0;
+  transition: right 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---- Loading / error ---- */
+.center-flag {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.center-flag .spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- 3D node labels (constant pixel size) ---- */
+.node-label {
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  line-height: 1;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 5px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(2px);
+}
+.node-label.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.node-label.priority {
+  border-color: var(--warning);
+}
+
+.subtle {
+  color: var(--text-muted);
+}
+.faint {
+  color: var(--text-faint);
+}
+.mono {
+  font-family: var(--mono);
+}
+.sans {
+  font-family: var(--sans);
+}
