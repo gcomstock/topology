@@ -165,6 +165,23 @@ a:hover {
   opacity: 0.12;
 }
 
+/* Tier tag (T0/T1/T2) on top of a traffic bar. */
+.tier-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-base) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transform: translate(-50%, -50%);
+}
+
 /* Grouped-layout zone headers (attribute anchors). */
 .zone-label {
   font-family: var(--mono);

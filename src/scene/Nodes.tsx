@@ -1,29 +1,27 @@
 import { useMemo, useRef } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
+import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useStore } from '../store'
 import { useTheme } from '../hooks'
 import { healthColor } from '../lib/color'
 import { sampleAt, nearestIndex } from '../lib/timeseries'
-import { critSteps, STEP_H, BASE_W } from './nodeShape'
+import { trafficToHeight } from '../lib/traffic'
+import { BASE_W, tierLabel } from './nodeShape'
 import type { Service } from '../types'
 
-// Geometry for a stepped/ziggurat pyramid with `steps` stacked steps.
-// More steps = taller + more stepped = more critical (counting steps is the read).
-function stepBoxes(steps: number) {
-  const boxes: { w: number; y: number; h: number }[] = []
-  for (let i = 0; i < steps; i++) {
-    const w = BASE_W * (1 - i * (0.5 / Math.max(steps, 1)))
-    boxes.push({ w: Math.max(0.16, w), y: i * STEP_H + STEP_H / 2, h: STEP_H })
-  }
-  return boxes
-}
-
-function PyramidNode({ service }: { service: Service }) {
+// A service is a rectangular BAR:
+//   height = relative traffic (live, animates on scrub)
+//   color  = aggregate SLO health (green→amber→red); gray = no data
+//   cage   = a wireframe box at EXPECTED traffic — fill pokes above on a spike,
+//            leaves a hollow cage on a dip
+//   tier   = a T0/T1/T2 tag on the box top
+function TrafficBar({ service }: { service: Service }) {
   const theme = useTheme()
   const pos = useStore((s) => s.positions[service.id])
   const clock = useStore((s) => s.clock)
   const data = useStore((s) => s.data)!
+  const domain = useStore((s) => s.trafficDomain)
   const selectedId = useStore((s) => s.selectedId)
   const hoveredId = useStore((s) => s.hoveredId)
   const select = useStore((s) => s.select)
@@ -33,49 +31,50 @@ function PyramidNode({ service }: { service: Service }) {
   const toggleCompareId = useStore((s) => s.toggleCompareId)
   const blast = useStore((s) => s.blastSet)
 
-  const boxes = useMemo(() => stepBoxes(critSteps(service.tier)), [service.tier])
-  const matRef = useRef<THREE.MeshStandardMaterial[]>([])
+  const matRef = useRef<THREE.MeshStandardMaterial>(null)
 
   const series = data.timeseries.perService[service.id]
   const burnFast = sampleAt(series?.burnFast, clock)
   const health = sampleAt(series?.health, clock)
   const sampleCount = series ? series.sampleCount[nearestIndex(clock, series.sampleCount.length)] : 5000
-
-  // Health is communicated by COLOR (not opacity) in this demo. A handful of
-  // very-low-sample services render gray to show what "no data" looks like.
   const hasData = sampleCount > 15
 
   const selected = selectedId === service.id
   const hovered = hoveredId === service.id
   const inCompare = compareIds.includes(service.id)
 
-  // Hover/selection dimming: when a highlight set is active, non-members dim
-  // hard so only the associated services stand out.
   const blastActive = blast.size > 0
   const inBlast = selected || blast.has(service.id)
   const dim = blastActive && !inBlast ? 0.12 : 1
 
-  // Glow = acute health urgency only (dynamic). Healthy nodes never glow.
-  const glow = Math.max(0, burnFast - 0.25)
+  // Expected (cage) height is static; the cap is rendered as a wireframe box.
+  const expectedH = useMemo(
+    () => trafficToHeight(service.expectedTraffic, domain),
+    [service.expectedTraffic, domain],
+  )
+
+  const baseColor = useMemo(() => {
+    if (!hasData) return new THREE.Color(theme.nodata)
+    return healthColor(health, theme)
+  }, [theme, hasData, health])
   const glowColor = useMemo(
     () => (hasData ? healthColor(health, theme) : new THREE.Color(theme.nodata)),
     [health, theme, hasData],
   )
-  const baseColor = useMemo(() => {
-    // Body color = health (green→amber→red). Criticality stays in the shape.
-    // No-data services render gray to demonstrate the missing-data state.
-    if (!hasData) return new THREE.Color(theme.nodata)
-    return healthColor(health, theme)
-  }, [theme, hasData, health])
 
-  // Per-frame subtle glow pulse around the burn-derived base intensity.
+  // Glow = acute burn only (attention beacon); otherwise no emissive.
+  const glow = Math.max(0, burnFast - 0.25)
+
+  // Live bar height from current-clock traffic (re-renders on clock change).
+  const actualTraffic = sampleAt(series?.golden.traffic, clock)
+  const actualH = Math.max(0.04, trafficToHeight(actualTraffic, domain))
+  const topH = Math.max(actualH, expectedH)
+
+  // useFrame only drives the glow pulse — height comes from React render above.
   useFrame((state) => {
-    const pulse = 1 + Math.sin(state.clock.elapsedTime * 3 + pos?.x * 7) * 0.18
-    const intensity = glow > 0 ? Math.min(3.2, glow * 0.9) * pulse : 0
-    for (const m of matRef.current) {
-      if (!m) continue
-      m.emissiveIntensity = intensity
-    }
+    if (!matRef.current) return
+    const pulse = 1 + Math.sin(state.clock.elapsedTime * 3 + (pos?.x ?? 0) * 7) * 0.18
+    matRef.current.emissiveIntensity = glow > 0 ? Math.min(3.0, glow * 0.9) * pulse : 0
   })
 
   if (!pos) return null
@@ -92,6 +91,11 @@ function PyramidNode({ service }: { service: Service }) {
     else select(service.id)
   }
 
+  const cageGeom = useMemo(() => new THREE.BoxGeometry(BASE_W, 1, BASE_W), [])
+  // A flat square rim (slightly larger) marking the expected height — a bright
+  // "you are here" reference the fill bar visibly pokes above / falls short of.
+  const rimGeom = useMemo(() => new THREE.BoxGeometry(BASE_W * 1.12, 0.001, BASE_W * 1.12), [])
+
   return (
     <group
       position={[pos.x, pos.elev ?? 0, pos.y]}
@@ -106,34 +110,51 @@ function PyramidNode({ service }: { service: Service }) {
         document.body.style.cursor = 'auto'
       }}
     >
-      {boxes.map((b, i) => (
-        <group key={i} position={[0, b.y, 0]}>
-          <mesh>
-            <boxGeometry args={[b.w, b.h, b.w]} />
-            <meshStandardMaterial
-              ref={(m) => {
-                if (m) matRef.current[i] = m as THREE.MeshStandardMaterial
-              }}
-              color={baseColor}
-              emissive={glowColor}
-              emissiveIntensity={0}
-              metalness={0.25}
-              roughness={0.5}
-              transparent
-              opacity={dim}
-            />
-          </mesh>
-          {/* Neutral outline so the silhouette stays readable against terrain/edges. */}
-          <lineSegments>
-            <edgesGeometry args={[new THREE.BoxGeometry(b.w, b.h, b.w)]} />
-            <lineBasicMaterial
-              color={outlineColor}
-              transparent
-              opacity={(selected || hovered ? 1 : 0.7) * dim}
-            />
-          </lineSegments>
-        </group>
-      ))}
+      {/* Solid fill bar — a unit cube scaled in Y from the base plane up. */}
+      <mesh position={[0, actualH / 2, 0]} scale={[1, actualH, 1]}>
+        <boxGeometry args={[BASE_W, 1, BASE_W]} />
+        <meshStandardMaterial
+          ref={matRef}
+          color={baseColor}
+          emissive={glowColor}
+          emissiveIntensity={0}
+          metalness={0.25}
+          roughness={0.5}
+          transparent
+          opacity={dim}
+        />
+      </mesh>
+
+      {/* Expected-traffic cage — static wireframe the fill is read against. */}
+      <lineSegments position={[0, expectedH / 2, 0]} scale={[1, expectedH, 1]}>
+        <edgesGeometry args={[cageGeom]} />
+        <lineBasicMaterial
+          color={selected || hovered ? outlineColor : theme.textMuted}
+          transparent
+          opacity={(selected || hovered ? 1 : 0.8) * dim}
+        />
+      </lineSegments>
+      {/* Emphasized "expected" rim — the reference line the fill crosses. */}
+      <lineSegments position={[0, expectedH, 0]}>
+        <edgesGeometry args={[rimGeom]} />
+        <lineBasicMaterial
+          color={selected || hovered ? outlineColor : theme.textPrimary}
+          transparent
+          opacity={(selected || hovered ? 1 : 0.9) * dim}
+        />
+      </lineSegments>
+
+      {/* Tier tag on top — above whichever is taller (fill or cage). */}
+      {dim > 0.5 && (
+        <Html
+          position={[0, topH + 0.14, 0]}
+          center
+          zIndexRange={[50, 0]}
+          style={{ pointerEvents: 'none' }}
+        >
+          <div className="tier-tag">{tierLabel(service.tier)}</div>
+        </Html>
+      )}
     </group>
   )
 }
@@ -143,7 +164,7 @@ export function Nodes() {
   return (
     <group>
       {services.map((s) => (
-        <PyramidNode key={s.id} service={s} />
+        <TrafficBar key={s.id} service={s} />
       ))}
     </group>
   )

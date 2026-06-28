@@ -1,19 +1,18 @@
 import { Html } from '@react-three/drei'
 import { useStore } from '../store'
-import { critSteps, STEP_H } from './nodeShape'
+import { barHeight } from './nodeShape'
 
-function labelY(tier: number) {
-  return critSteps(tier) * STEP_H + 0.24
-}
-
-// Every service is labelled (the layered + isometric arrangement gives enough
-// room). Selection/priority drive emphasis, not visibility.
+// Every service is labelled; the name floats just above the top of its traffic
+// bar (which animates with the clock). Selection/priority drive emphasis.
 export function Labels() {
   const services = useStore((s) => s.data?.topology.services ?? [])
   const positions = useStore((s) => s.positions)
   const selectedId = useStore((s) => s.selectedId)
   const priorityTop = useStore((s) => s.priorityTop)
   const blast = useStore((s) => s.blastSet)
+  const data = useStore((s) => s.data)
+  const clock = useStore((s) => s.clock)
+  const domain = useStore((s) => s.trafficDomain)
 
   const dimming = blast.size > 0
 
@@ -22,6 +21,8 @@ export function Labels() {
       {services.map((s) => {
         const pos = positions[s.id]
         if (!pos) return null
+        const series = data?.timeseries.perService[s.id]
+        const top = (pos.elev ?? 0) + barHeight(series, clock, domain) + 0.42 // clear tier tag
         const associated = !dimming || s.id === selectedId || blast.has(s.id)
         const cls =
           'node-label' +
@@ -31,7 +32,7 @@ export function Labels() {
         return (
           <Html
             key={s.id}
-            position={[pos.x, (pos.elev ?? 0) + labelY(s.tier), pos.y]}
+            position={[pos.x, top, pos.y]}
             center
             zIndexRange={associated ? [100, 0] : [40, 0]}
             style={{ pointerEvents: 'none' }}

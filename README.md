@@ -1,6 +1,6 @@
 # 3D Observability Topology — Prototype Data & Repo Guide
 
-A frontend-only, deploy-to-GitHub-Pages prototype of a **3D service topology for incident response**. The 3D scene renders a microservice graph on a plane, with a **terrain surface below the nodes that deforms downward** to show health (burn severity), all governed by a **global time playhead** you can scrub to watch incidents propagate.
+A frontend-only, deploy-to-GitHub-Pages prototype of a **3D service topology for incident response**. The 3D scene renders microservices as **bars on a grid** — **height = relative traffic** (with a wireframe "cage" marking expected traffic so spikes/dips read), **color = aggregate SLO health** — all governed by a **global time playhead** you can scrub to watch incidents propagate.
 
 This README documents the **dummy dataset** (the four JSON files) and how it fits the build. For the full product/build spec — tech stack, components, visual design tokens, build order — see **`3d-topology-build-spec.md`**, which is the authoritative implementation document.
 
@@ -60,6 +60,7 @@ All time-series arrays are **index-aligned to `timeseries.timestamps`** — elem
 | `datastores` | string[] | DBs/caches/queues it talks to (e.g. `pg-ledger`, `redis-cart`) |
 | `replicas` | object | `{ region: count }` — feeds the infra "cubes" viz |
 | `inDegree` | int | how many services depend on this one — a centrality/criticality signal |
+| `expectedTraffic` | int | stable baseline rps; renders as the bar-height "cage" actual traffic is read against |
 | `owner` | object | `{ name, contact }` |
 | `onCall` | object | `{ name, contact }` |
 | `links` | object | `{ runbook, dashboard, repo, docs }` — **docs opens in a new tab; not hosted in-product** |
@@ -134,7 +135,10 @@ Four **unrelated** eu-west-1 services — `search-api`, `recommendation-engine`,
 `search-indexer` carries a sustained low `burnSlow` (~0.38) throughout — a "leak" that should render as a **broad shallow basin**, visually distinct from the hero's sharp pits. Tests the acute-vs-chronic terrain distinction.
 
 **4. Low-sample / low-confidence nodes**
-`wishlist-service`, `review-service`, `sms-gateway` have very low `sampleCount` — render them **translucent** to show the confidence channel and avoid trusting their noisy burn.
+`wishlist-service`, `review-service`, `sms-gateway` have very low `sampleCount` (and a low `expectedTraffic`) — render them **gray** ("no data") to show the missing-data state.
+
+**5. Flash-sale traffic spike (health stays green)**
+`storefront-api` + `catalog-api` traffic jumps ~2.5–2.8× over their `expectedTraffic` cage at **07:00–08:30** while SLOs stay healthy — the "traffic is noteworthy, health is fine" case the bar-height + cage encoding exists to show. Paired with a traffic **dip** on `payments-api`/`checkout-api` during the hero incident (load-shedding while they redden).
 
 **Documented failure behaviors** live on 5 edges, including the hero path (`checkout→payments`, `order-orchestrator→payments`) — so the diagram panel shows both filled human-authored notes and empty "not yet documented" states.
 

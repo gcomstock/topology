@@ -1,21 +1,28 @@
-// Shared node-geometry constants so pyramids, labels, and event bubbles agree
-// on how tall a node is.
+import { sampleAt } from '../lib/timeseries'
+import { trafficToHeight, type TrafficDomain } from '../lib/traffic'
+import type { ServiceSeries } from '../types'
 
 // Grid cell size. A node's footprint is 3×3 cells, so the base width is 3·CELL.
-// Flow-layout node positions snap to this grid so everything rests on it cleanly.
+// Layout positions snap to this grid so everything rests on it cleanly.
 export const CELL = 0.34
-export const STEP_H = 0.2
 export const BASE_W = CELL * 3
 
-// Criticality is read as 3 levels (the common Tier-0 / Tier-1 / Tier-2 scheme),
-// so the data's 4 tiers collapse to 1–3 stacked steps:
-//   tier 4 (critical) → 3 steps · tier 3 (important) → 2 · tier 1–2 → 1.
-export function critSteps(tier: number): number {
-  if (tier >= 4) return 3
-  if (tier === 3) return 2
-  return 1
+// Criticality is read as 3 levels (Tier-0 / Tier-1 / Tier-2). The data's 4 tiers
+// collapse: tier 4 (critical) → T0, tier 3 → T1, tier 1–2 → T2. Shown as a tag
+// on the box top rather than encoded in shape (the box height is traffic now).
+export function tierLabel(tier: number): string {
+  if (tier >= 4) return 'T0'
+  if (tier === 3) return 'T1'
+  return 'T2'
 }
 
-export function nodeHeight(tier: number): number {
-  return critSteps(tier) * STEP_H
+// Current bar height (world units) from live traffic at the clock. Shared so
+// labels / bubbles can float at the top of the animating bar.
+export function barHeight(
+  series: ServiceSeries | undefined,
+  clock: number,
+  domain: TrafficDomain,
+): number {
+  const traffic = sampleAt(series?.golden.traffic, clock)
+  return trafficToHeight(traffic, domain)
 }

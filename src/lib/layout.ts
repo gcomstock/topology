@@ -11,7 +11,6 @@ import type { Topology, NodePosition } from '../types'
 import { CELL } from '../scene/nodeShape'
 
 export type LayoutMode = 'layered' | 'flow' | 'organic' | 'grouped'
-export type GroupAttr = 'team' | 'region' | 'datastore'
 
 export interface GroupAnchor {
   label: string
@@ -58,26 +57,36 @@ export function flowLayout(topo: Topology): Record<string, NodePosition> {
   const RANK_STRIDE = NODE_CELLS + RANKSEP_CELLS // cells between rank columns
   const ROW_STRIDE = NODE_CELLS + NODESEP_CELLS // cells between rows in a rank
 
-  const ranks = new Map<number, { id: string; y: number }[]>()
+  const expBy = expectedTrafficMap(topo)
+  const ranks = new Map<number, string[]>()
   for (const s of topo.services) {
     const n = g.node(s.id)
     const rx = n ? Math.round(n.x) : 0
     if (!ranks.has(rx)) ranks.set(rx, [])
-    ranks.get(rx)!.push({ id: s.id, y: n ? n.y : 0 })
+    ranks.get(rx)!.push(s.id)
   }
   const rankKeys = [...ranks.keys()].sort((a, b) => a - b)
   const centerCol = ((rankKeys.length - 1) * RANK_STRIDE) / 2
 
   const out: Record<string, NodePosition> = {}
   rankKeys.forEach((rk, ri) => {
-    const members = ranks.get(rk)!.sort((a, b) => a.y - b.y)
+    // Order each rank's rows by traffic so the tallest bars sit at the BACK
+    // (low z = far from the camera) and don't occlude shorter ones in front.
+    const members = [...ranks.get(rk)!].sort((a, b) => expBy[b] - expBy[a])
     const gx = ri * RANK_STRIDE - centerCol
-    members.forEach((m, i) => {
+    members.forEach((id, i) => {
       const gz = (i - (members.length - 1) / 2) * ROW_STRIDE
-      out[m.id] = { x: gx * CELL, y: gz * CELL }
+      out[id] = { x: gx * CELL, y: gz * CELL }
     })
   })
   return out
+}
+
+// expectedTraffic per service id (drives bar height + tall-in-back sort order).
+function expectedTrafficMap(topo: Topology): Record<string, number> {
+  const m: Record<string, number> = {}
+  for (const s of topo.services) m[s.id] = s.expectedTraffic
+  return m
 }
 
 interface SimNode extends SimulationNodeDatum {
@@ -208,22 +217,15 @@ function centerHubs(idsByDegreeDesc: string[]): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Grouped (attribute-anchored) layout: each attribute value is a fixed anchor on
-// a circle; a service sits at the mean of its values' anchors. Multi-valued
-// attributes (a service in two regions) land between anchors; services sharing
-// the same value-set cluster together — surfacing shared-substrate correlation
-// the call graph can't show. Computed once, then frozen.
+// Grouped-by-team layout: each team is a fixed anchor on a circle; its services
+// pack into a compact grid block at that anchor. Surfaces ownership clusters.
+// Within a block the tallest-traffic services sit at the BACK rows so they don't
+// occlude shorter ones. Computed once, then frozen.
 const CLUSTER_STRIDE = 4 // cells between nodes within a cluster (3 footprint + 1 gap)
 
-function valuesFor(s: Topology['services'][number], attr: GroupAttr): string[] {
-  if (attr === 'team') return [s.team]
-  const arr = attr === 'region' ? s.regions : s.datastores
-  return arr.length ? arr : ['—']
-}
-
-export function groupAnchorsFor(topo: Topology, groupBy: GroupAttr): GroupAnchor[] {
+export function groupAnchorsFor(topo: Topology): GroupAnchor[] {
   const set = new Set<string>()
-  for (const s of topo.services) for (const v of valuesFor(s, groupBy)) set.add(v)
+  for (const s of topo.services) set.add(s.team)
   const values = [...set].sort()
   const n = values.length
   const radius = Math.max(7, n * 1.8)
@@ -235,24 +237,17 @@ export function groupAnchorsFor(topo: Topology, groupBy: GroupAttr): GroupAnchor
 
 export function groupedLayout(
   topo: Topology,
-  groupBy: GroupAttr,
 ): { positions: Record<string, NodePosition>; anchors: GroupAnchor[] } {
-  const anchors = groupAnchorsFor(topo, groupBy)
+  const anchors = groupAnchorsFor(topo)
   const anchorBy = new Map(anchors.map((a) => [a.label, a]))
+  const expBy = expectedTrafficMap(topo)
 
-  // bucket services by their snapped centroid cell
+  // bucket services by their team's anchor cell
   const buckets = new Map<string, string[]>()
   for (const s of topo.services) {
-    const vals = valuesFor(s, groupBy)
-    let sx = 0
-    let sy = 0
-    for (const v of vals) {
-      const a = anchorBy.get(v)!
-      sx += a.x
-      sy += a.y
-    }
-    const gx = Math.round(sx / vals.length / CELL)
-    const gz = Math.round(sy / vals.length / CELL)
+    const a = anchorBy.get(s.team)!
+    const gx = Math.round(a.x / CELL)
+    const gz = Math.round(a.y / CELL)
     const key = `${gx},${gz}`
     if (!buckets.has(key)) buckets.set(key, [])
     buckets.get(key)!.push(s.id)
@@ -276,14 +271,16 @@ export function groupedLayout(
 
   const positions: Record<string, NodePosition> = {}
   for (const key of [...buckets.keys()].sort()) {
-    const ids = buckets.get(key)!.sort()
+    // Sort each block by traffic descending → tallest fill the back rows first.
+    const ids = buckets.get(key)!.sort((a, b) => expBy[b] - expBy[a])
     const [bgx, bgz] = key.split(',').map(Number)
     const cols = Math.ceil(Math.sqrt(ids.length))
+    const rows = Math.ceil(ids.length / cols)
     ids.forEach((id, i) => {
       const col = i % cols
-      const row = Math.floor(i / cols)
+      const row = Math.floor(i / cols) // row 0 = back (low z)
       const dgx = Math.round((col - (cols - 1) / 2) * CLUSTER_STRIDE)
-      const dgz = Math.round((row - (Math.ceil(ids.length / cols) - 1) / 2) * CLUSTER_STRIDE)
+      const dgz = Math.round((row - (rows - 1) / 2) * CLUSTER_STRIDE)
       const [gx, gz] = freeNear(bgx + dgx, bgz + dgz)
       taken.add(`${gx},${gz}`)
       positions[id] = { x: gx * CELL, y: gz * CELL }
@@ -292,14 +289,10 @@ export function groupedLayout(
   return { positions, anchors }
 }
 
-export function computeLayout(
-  topo: Topology,
-  mode: LayoutMode,
-  groupBy: GroupAttr = 'team',
-): Record<string, NodePosition> {
+export function computeLayout(topo: Topology, mode: LayoutMode): Record<string, NodePosition> {
   if (mode === 'layered') return layeredLayout(topo)
   if (mode === 'flow') return flowLayout(topo)
-  if (mode === 'grouped') return groupedLayout(topo, groupBy).positions
+  if (mode === 'grouped') return groupedLayout(topo).positions
   return organicLayout(topo)
 }
 

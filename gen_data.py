@@ -12,9 +12,12 @@ Bakes in:
   * a scripted HERO incident: deploy to payments-api -> propagates upstream
   * a disconnected COMMON-CAUSE story: eu-west-1 services degrade together
 """
-import json, math, random, os
+import json, math, random, os, hashlib
 
 random.seed(42)
+
+# Services rendered translucent/gray (very low sample) — also get a low baseline.
+LOW_SAMPLE = ("svc-wishlist", "svc-review", "svc-sms-gateway")
 
 # ----------------------------------------------------------------------------
 # Time axis: 2026-06-27 00:00Z .. 12:00Z at 5-min steps (145 points). Live = last.
@@ -31,6 +34,7 @@ def idx_for_hours(h):
 # Key moments (in hours from START)
 HERO_DEPLOY_H = 9.5            # payments-api deploy
 REGION_START_H, REGION_END_H = 5.0, 5.75   # eu-west-1 common-cause window
+FLASH_START_H, FLASH_END_H = 7.0, 8.5      # flash-sale traffic spike (health stays OK)
 
 REGIONS = ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"]
 TEAMS = ["Payments", "Identity", "Catalog", "Fulfillment", "Growth",
@@ -218,11 +222,24 @@ for caller, callees in DEPS.items():
 # ----------------------------------------------------------------------------
 # Per-service baseline traffic/latency by tier+layer for plausible golden signals
 # ----------------------------------------------------------------------------
-def baseline_traffic(s):
-    tier = s["tier"]; layer = s["layer"]
+# Deterministic per-service jitter (stable regardless of call order), so the
+# baked "expectedTraffic" baseline exactly matches the traffic series baseline.
+def _svc_jitter(sid, lo=0.7, hi=1.3):
+    h = int(hashlib.md5(sid.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
+    return lo + (hi - lo) * h
+
+# Stable steady-state (diurnal-free) baseline traffic — drives the "expected"
+# cage that actual traffic is read against.
+def expected_traffic(sid, tier, layer):
     base = {0: 9000, 1: 6000, 2: 3500, 3: 2500, 4: 800}[layer]
     base *= (0.6 + 0.2 * tier)
-    return base * random.uniform(0.7, 1.3)
+    base *= _svc_jitter(sid)
+    if sid in LOW_SAMPLE:
+        base *= 0.03
+    return base
+
+def baseline_traffic(s):
+    return expected_traffic(s["id"], s["tier"], s["layer"])
 
 def baseline_latency(s):
     return random.uniform(8, 45)  # p50 ms
@@ -247,6 +264,7 @@ def mk_service(s):
         "lifecycle": lifecycle, "layer": layer,
         "regions": regions, "datastores": datastores, "replicas": replicas,
         "inDegree": indeg.get(sid, 0),
+        "expectedTraffic": round(expected_traffic(sid, tier, layer)),
         "owner": {"name": owner, "contact": owner.split()[0].lower() + "@acme.example"},
         "onCall": {"name": oncall, "contact": "@" + oncall.split()[0].lower() + " · pager-duty"},
         "links": {
@@ -389,6 +407,24 @@ def hero_burn(sid, t_h):
     recov = clamp((dt_h - 1.5) / 2.0, 0, 0.6)  # recovers up to 60%
     return peak * rise * (1 - recov)
 
+# Traffic anomalies (multiply the baseline). These move TRAFFIC only, not burn,
+# so the height/cage read tells a story the health color does not.
+FLASH_SALE = ("svc-storefront-api", "svc-catalog-api")  # spike, SLOs stay green
+SHED_LOAD = ("svc-payments", "svc-checkout")          # dip as they degrade
+def traffic_mult(sid, t_h):
+    m = 1.0
+    # Flash sale: ~2.6x plateau with smooth ramps; health unaffected (no burn).
+    if sid in FLASH_SALE and FLASH_START_H <= t_h <= FLASH_END_H:
+        up = clamp((t_h - FLASH_START_H) / 0.25, 0, 1)
+        down = clamp((FLASH_END_H - t_h) / 0.25, 0, 1)
+        m *= 1 + 1.6 * min(up, down)
+    # Load-shedding: traffic sinks below the cage as the hero incident bites.
+    if sid in SHED_LOAD:
+        hb = hero_burn(sid, t_h)
+        if hb > 0.5:
+            m *= clamp(1 - 0.12 * hb, 0.45, 1.0)
+    return m
+
 def region_burn(sid, t_h):
     if sid not in REGION_HIT:
         return 0.0
@@ -402,9 +438,9 @@ def region_burn(sid, t_h):
 perService = {}
 for s in services:
     sid = s["id"]
-    bt = baseline_traffic(s)
+    bt = s["expectedTraffic"]  # stable baseline == the rendered "expected" cage
     bl = baseline_latency(s)
-    low_sample = sid in ("svc-wishlist","svc-review","svc-sms-gateway")  # demo confidence/translucency
+    low_sample = sid in LOW_SAMPLE  # demo confidence/translucency (already in bt)
     burnFast, burnSlow, health, sampleCount = [], [], [], []
     g_p50, g_p99, g_traf, g_err, g_sat = [], [], [], [], []
     for i in range(N):
@@ -421,11 +457,10 @@ for s in services:
         # health 0..1 from burn
         h = clamp(1.0 - 0.18 * bf - 0.10 * bs - abs(noise(0.01)), 0.02, 0.999)
         health.append(round(h, 3))
-        # golden signals
-        diurnal = 1 + 0.25 * math.sin((i / N) * 2 * math.pi - 1.2)
-        traf = bt * diurnal * (1 + noise(0.04))
-        if low_sample:
-            traf *= 0.03
+        # golden signals — traffic breathes mildly (diurnal) around the baseline
+        # cage, with anomaly multipliers for the flash-sale spike / incident dip.
+        diurnal = 1 + 0.12 * math.sin((i / N) * 2 * math.pi - 1.2)
+        traf = bt * diurnal * traffic_mult(sid, t_h) * (1 + noise(0.03))
         g_traf.append(int(max(1, traf)))
         sampleCount.append(int(max(1, traf * 5 / 60)))  # ~ requests per 5-min window proxy
         lat50 = bl * (1 + 1.8 * bf) * (1 + noise(0.05))

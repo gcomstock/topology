@@ -1,7 +1,7 @@
 import { Html } from '@react-three/drei'
 import { useStore } from '../store'
 import { clockToMs } from '../lib/timeseries'
-import { nodeHeight } from './nodeShape'
+import { barHeight } from './nodeShape'
 import type { SystemEvent } from '../types'
 
 const WINDOW_MS = 22 * 60 * 1000 // ±22 min fade window (persistence-and-decay)
@@ -24,13 +24,12 @@ const HUE: Record<SystemEvent['type'], string> = {
 export function EventBubbles() {
   const events = useStore((s) => s.data?.events.events ?? [])
   const positions = useStore((s) => s.positions)
-  const services = useStore((s) => s.data?.topology.services ?? [])
+  const data = useStore((s) => s.data)
   const clock = useStore((s) => s.clock)
   const tsMs = useStore((s) => s.tsMs)
+  const domain = useStore((s) => s.trafficDomain)
 
   const nowMs = clockToMs(clock, tsMs)
-  const tierById: Record<string, number> = {}
-  for (const s of services) tierById[s.id] = s.tier
 
   return (
     <group>
@@ -40,11 +39,12 @@ export function EventBubbles() {
         const dt = Math.abs(Date.parse(ev.timestamp) - nowMs)
         if (dt > WINDOW_MS) return null
         const opacity = 1 - dt / WINDOW_MS
-        const tier = tierById[ev.serviceId] ?? 1
+        const series = data?.timeseries.perService[ev.serviceId]
+        const top = (p.elev ?? 0) + barHeight(series, clock, domain) + 0.78
         return (
           <Html
             key={ev.id}
-            position={[p.x, (p.elev ?? 0) + nodeHeight(tier) + 0.62, p.y]}
+            position={[p.x, top, p.y]}
             center
             zIndexRange={[120, 10]}
             style={{ pointerEvents: 'none' }}

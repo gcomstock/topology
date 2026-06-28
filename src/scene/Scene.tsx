@@ -60,13 +60,12 @@ export function Scene() {
   const data = useStore((s) => s.data)
   const select = useStore((s) => s.select)
   const layoutMode = useStore((s) => s.layoutMode)
-  const groupBy = useStore((s) => s.groupBy)
 
-  // Reframe to the locked pose whenever the layout (or grouping) changes.
+  // Reframe to the locked pose whenever the layout changes (and on mount).
   useEffect(() => {
     const id = requestAnimationFrame(resetView)
     return () => cancelAnimationFrame(id)
-  }, [layoutMode, groupBy, data])
+  }, [layoutMode, data])
 
   if (!data) return null
 

@@ -6,7 +6,6 @@ import {
   groupedLayout,
   layoutBounds,
   type LayoutMode,
-  type GroupAttr,
   type GroupAnchor,
 } from './lib/layout'
 import {
@@ -17,16 +16,17 @@ import {
   type PriorityEntry,
 } from './lib/graph'
 import { timestampsToMs, msToClock } from './lib/timeseries'
+import { trafficDomain, type TrafficDomain } from './lib/traffic'
 
 export type CompareMode = 'off' | 'staging' | 'committed'
 
-// Compute node positions for a mode, plus zone anchors when grouped (else []).
-function layoutFor(topo: AppData['topology'], mode: LayoutMode, groupBy: GroupAttr) {
+// Compute node positions for a mode, plus team zone anchors when grouped (else []).
+function layoutFor(topo: AppData['topology'], mode: LayoutMode) {
   if (mode === 'grouped') {
-    const { positions, anchors } = groupedLayout(topo, groupBy)
+    const { positions, anchors } = groupedLayout(topo)
     return { positions, groupAnchors: anchors }
   }
-  return { positions: computeLayout(topo, mode, groupBy), groupAnchors: [] as GroupAnchor[] }
+  return { positions: computeLayout(topo, mode), groupAnchors: [] as GroupAnchor[] }
 }
 
 interface AppState {
@@ -37,6 +37,7 @@ interface AppState {
   positions: Record<string, NodePosition>
   bounds: ReturnType<typeof layoutBounds>
   graph: GraphIndex | null
+  trafficDomain: TrafficDomain
 
   // --- theme ---
   themeName: ThemeName
@@ -45,9 +46,7 @@ interface AppState {
   // --- layout ---
   layoutMode: LayoutMode
   setLayoutMode: (m: LayoutMode) => void
-  groupBy: GroupAttr
-  setGroupBy: (g: GroupAttr) => void
-  groupAnchors: GroupAnchor[] // zone anchors, populated only in grouped mode
+  groupAnchors: GroupAnchor[] // team zone anchors, populated only in grouped mode
 
   // --- clock ---
   clock: number // fractional index into timestamps
@@ -96,6 +95,7 @@ export const useStore = create<AppState>((set, get) => ({
   positions: {},
   bounds: layoutBounds({}),
   graph: null,
+  trafficDomain: { logMin: 0, logMax: 1 },
 
   themeName: 'dark',
   toggleTheme: () => {
@@ -112,21 +112,10 @@ export const useStore = create<AppState>((set, get) => ({
       set({ layoutMode: m })
       return
     }
-    const { positions, groupAnchors } = layoutFor(data.topology, m, get().groupBy)
+    const { positions, groupAnchors } = layoutFor(data.topology, m)
     set({ layoutMode: m, positions, groupAnchors, bounds: layoutBounds(positions) })
   },
-  groupBy: (localStorage.getItem('groupBy') as GroupAttr) || 'team',
   groupAnchors: [],
-  setGroupBy: (g) => {
-    localStorage.setItem('groupBy', g)
-    const data = get().data
-    if (!data || get().layoutMode !== 'grouped') {
-      set({ groupBy: g })
-      return
-    }
-    const { positions, anchors } = groupedLayout(data.topology, g)
-    set({ groupBy: g, positions, groupAnchors: anchors, bounds: layoutBounds(positions) })
-  },
 
   clock: 0,
   live: true,
@@ -201,7 +190,7 @@ export const useStore = create<AppState>((set, get) => ({
   setCompareIds: (ids) => set({ compareIds: ids }),
 
   init: (data) => {
-    const { positions, groupAnchors } = layoutFor(data.topology, get().layoutMode, get().groupBy)
+    const { positions, groupAnchors } = layoutFor(data.topology, get().layoutMode)
     const tsMs = timestampsToMs(data.timeseries.timestamps)
     const lastIndex = tsMs.length - 1
     const graph = buildGraphIndex(data.topology)
@@ -216,6 +205,7 @@ export const useStore = create<AppState>((set, get) => ({
       groupAnchors,
       bounds: layoutBounds(positions),
       graph,
+      trafficDomain: trafficDomain(data.topology),
       lastIndex,
       clock: lastIndex,
       live: true,

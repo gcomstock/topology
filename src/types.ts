@@ -19,6 +19,7 @@ export interface Service {
   datastores: string[]
   replicas: Record<string, number>
   inDegree: number
+  expectedTraffic: number // stable baseline rps — drives bar height "cage" + sort
   owner: { name: string; contact: string }
   onCall: { name: string; contact: string }
   links: { runbook: string; dashboard: string; repo: string; docs: string }
