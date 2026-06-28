@@ -222,21 +222,22 @@ for caller, callees in DEPS.items():
 # ----------------------------------------------------------------------------
 # Per-service baseline traffic/latency by tier+layer for plausible golden signals
 # ----------------------------------------------------------------------------
-# Deterministic per-service jitter (stable regardless of call order), so the
-# baked "expectedTraffic" baseline exactly matches the traffic series baseline.
-def _svc_jitter(sid, lo=0.7, hi=1.3):
-    h = int(hashlib.md5(sid.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
-    return lo + (hi - lo) * h
+# Deterministic per-service hash in [0,1) (stable regardless of call order).
+def _svc_u01(sid):
+    return int(hashlib.md5(sid.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
 
 # Stable steady-state (diurnal-free) baseline traffic — drives the "expected"
-# cage that actual traffic is read against.
+# cage actual traffic is read against. LOG-UNIFORM per service so bar heights
+# show an EVEN mix of high/medium/low traffic, with only a mild layer/tier bias
+# (edge + critical services trend a little higher). The LOW_SAMPLE set is pinned
+# tiny so it reads as "no data" (gray) — distinct from merely low traffic.
 def expected_traffic(sid, tier, layer):
-    base = {0: 9000, 1: 6000, 2: 3500, 3: 2500, 4: 800}[layer]
-    base *= (0.6 + 0.2 * tier)
-    base *= _svc_jitter(sid)
     if sid in LOW_SAMPLE:
-        base *= 0.03
-    return base
+        return 30 + 40 * _svc_u01(sid)  # ~30–70 rps → gray "no data"
+    lo, hi = math.log(150.0), math.log(18000.0)
+    u = 0.9 * _svc_u01(sid) + (4 - layer) / 4 * 0.12 + (tier - 1) / 3 * 0.05
+    u = max(0.0, min(1.0, u))
+    return math.exp(lo + u * (hi - lo))
 
 def baseline_traffic(s):
     return expected_traffic(s["id"], s["tier"], s["layer"])
@@ -410,7 +411,8 @@ def hero_burn(sid, t_h):
 # Traffic anomalies (multiply the baseline). These move TRAFFIC only, not burn,
 # so the height/cage read tells a story the health color does not.
 FLASH_SALE = ("svc-storefront-api", "svc-catalog-api")  # spike, SLOs stay green
-SHED_LOAD = ("svc-payments", "svc-checkout")          # dip as they degrade
+# Whole hero cluster sheds load as it degrades — traffic collapses dramatically.
+SHED_LOAD = ("svc-payments", "svc-checkout", "svc-order-orchestrator", "svc-subscription")
 def traffic_mult(sid, t_h):
     m = 1.0
     # Flash sale: ~2.6x plateau with smooth ramps; health unaffected (no burn).
@@ -418,11 +420,12 @@ def traffic_mult(sid, t_h):
         up = clamp((t_h - FLASH_START_H) / 0.25, 0, 1)
         down = clamp((FLASH_END_H - t_h) / 0.25, 0, 1)
         m *= 1 + 1.6 * min(up, down)
-    # Load-shedding: traffic sinks below the cage as the hero incident bites.
+    # Load-shedding: traffic collapses well below the cage as the hero incident
+    # bites (payments drops to ~15% of baseline at peak burn).
     if sid in SHED_LOAD:
         hb = hero_burn(sid, t_h)
-        if hb > 0.5:
-            m *= clamp(1 - 0.12 * hb, 0.45, 1.0)
+        if hb > 0.4:
+            m *= clamp(1 - 0.20 * hb, 0.12, 1.0)
     return m
 
 def region_burn(sid, t_h):
@@ -462,7 +465,11 @@ for s in services:
         diurnal = 1 + 0.12 * math.sin((i / N) * 2 * math.pi - 1.2)
         traf = bt * diurnal * traffic_mult(sid, t_h) * (1 + noise(0.03))
         g_traf.append(int(max(1, traf)))
-        sampleCount.append(int(max(1, traf * 5 / 60)))  # ~ requests per 5-min window proxy
+        # sampleCount drives the "no data" (gray) channel ONLY — keep normal
+        # services comfortably sampled regardless of how low their traffic is, so
+        # low-traffic services still render healthy-colored, not gray.
+        sc = int(max(1, traf * 5 / 60))
+        sampleCount.append(sc if low_sample else max(300, sc))
         lat50 = bl * (1 + 1.8 * bf) * (1 + noise(0.05))
         lat99 = lat50 * (2.4 + 2.5 * bf) * (1 + noise(0.05))
         g_p50.append(round(lat50, 1)); g_p99.append(round(lat99, 1))

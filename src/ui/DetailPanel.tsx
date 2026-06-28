@@ -27,6 +27,8 @@ export function DetailPanel() {
   const tsMs = useStore((s) => s.tsMs)
   const graph = useStore((s) => s.graph)!
   const priorityList = useStore((s) => s.priorityList)
+  const blastSet = useStore((s) => s.blastSet)
+  const positions = useStore((s) => s.positions)
   const openDiagram = useStore((s) => s.openDiagram)
   const startCompare = useStore((s) => s.startCompare)
   const theme = useTheme()
@@ -50,35 +52,38 @@ export function DetailPanel() {
     return () => ro.disconnect()
   }, [])
 
-  // Keyboard nav — re-targets in place (←/→ traverse dependency graph,
-  // ↑/↓ traverse the priority ranking). Never traps the user.
+  // Keyboard nav — re-targets in place, but traversal is LIMITED to the active
+  // topology (the highlighted set). ↑/↓ walk it by priority; ←/→ walk it
+  // left→right by position. Never traps the user.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       if (!selectedId) return
-      if (e.key === 'ArrowLeft') {
-        const up = graph.upstream[selectedId]?.[0]
-        if (up) { e.preventDefault(); select(up) }
-      } else if (e.key === 'ArrowRight') {
-        const down = graph.downstream[selectedId]?.[0]
-        if (down) { e.preventDefault(); select(down) }
-      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        const order = priorityList.map((p) => p.serviceId)
-        const idx = order.indexOf(selectedId)
-        if (idx >= 0) {
-          e.preventDefault()
-          const next = e.key === 'ArrowDown' ? idx + 1 : idx - 1
-          const wrapped = (next + order.length) % order.length
-          select(order[wrapped])
-        }
-      } else if (e.key === 'Escape') {
+      if (e.key === 'Escape') {
         select(null)
+        return
+      }
+      // The active set is the highlighted topology (selected + its blast set).
+      const active = blastSet.size ? [...blastSet] : [selectedId]
+      const cycle = (order: string[], dir: 1 | -1) => {
+        if (order.length < 2) return
+        const i = order.indexOf(selectedId)
+        if (i < 0) return
+        e.preventDefault()
+        select(order[(i + dir + order.length) % order.length])
+      }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const byPriority = priorityList.map((p) => p.serviceId).filter((id) => active.includes(id))
+        cycle(byPriority, e.key === 'ArrowDown' ? 1 : -1)
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const byX = [...active].sort((a, b) => (positions[a]?.x ?? 0) - (positions[b]?.x ?? 0))
+        cycle(byX, e.key === 'ArrowRight' ? 1 : -1)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedId, graph, priorityList, select])
+  }, [selectedId, priorityList, blastSet, positions, select])
 
   // Reset scroll + about-collapse on retarget.
   useEffect(() => {
@@ -116,15 +121,15 @@ export function DetailPanel() {
         <div style={{ flex: 1 }} />
         <button onClick={startCompare} title="Compare with others">compare</button>
         <div className="nav">
-          <button title="Prev (↑)" onClick={() => {
-            const order = priorityList.map((p) => p.serviceId)
+          <button title="Prev in active topology (↑)" onClick={() => {
+            const order = priorityList.map((p) => p.serviceId).filter((id) => blastSet.has(id))
             const idx = order.indexOf(svc.id)
-            if (idx >= 0) select(order[(idx - 1 + order.length) % order.length])
+            if (order.length > 1 && idx >= 0) select(order[(idx - 1 + order.length) % order.length])
           }}>↑</button>
-          <button title="Next (↓)" onClick={() => {
-            const order = priorityList.map((p) => p.serviceId)
+          <button title="Next in active topology (↓)" onClick={() => {
+            const order = priorityList.map((p) => p.serviceId).filter((id) => blastSet.has(id))
             const idx = order.indexOf(svc.id)
-            if (idx >= 0) select(order[(idx + 1) % order.length])
+            if (order.length > 1 && idx >= 0) select(order[(idx + 1) % order.length])
           }}>↓</button>
         </div>
         <button className="x" onClick={() => select(null)} title="Close (Esc)">✕</button>
@@ -259,7 +264,7 @@ export function DetailPanel() {
         </Section>
 
         <div className="faint" style={{ fontSize: 10, marginTop: 8 }}>
-          showing data for {fmtDateTime(nowMs)} · use ← → to walk dependencies, ↑ ↓ to walk priority
+          showing data for {fmtDateTime(nowMs)} · ← → ↑ ↓ walk the active topology · esc to exit
         </div>
       </div>
     </div>

@@ -43,9 +43,13 @@ function TrafficBar({ service }: { service: Service }) {
   const hovered = hoveredId === service.id
   const inCompare = compareIds.includes(service.id)
 
-  const blastActive = blast.size > 0
+  // When a service is selected, the "active topology" is the highlighted set
+  // (selected + its blast set). Everything else dims AND becomes inert — not
+  // hoverable or clickable; traversal is limited to the active set.
+  const selectionActive = selectedId != null
   const inBlast = selected || blast.has(service.id)
-  const dim = blastActive && !inBlast ? 0.12 : 1
+  const dim = blast.size > 0 && !inBlast ? 0.12 : 1
+  const interactive = !selectionActive || inBlast
 
   // Expected (cage) height is static; the cap is rendered as a wireframe box.
   const expectedH = useMemo(
@@ -86,6 +90,9 @@ function TrafficBar({ service }: { service: Service }) {
     : theme.textMuted
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
+    // Staging mode is always interactive; otherwise dimmed (non-active) nodes
+    // are inert so clicking is limited to the active topology.
+    if (compareMode !== 'staging' && !interactive) return
     e.stopPropagation()
     if (compareMode === 'staging') toggleCompareId(service.id)
     else select(service.id)
@@ -101,11 +108,13 @@ function TrafficBar({ service }: { service: Service }) {
       position={[pos.x, pos.elev ?? 0, pos.y]}
       onClick={onClick}
       onPointerOver={(e) => {
+        if (compareMode !== 'staging' && !interactive) return // dimmed → inert
         e.stopPropagation()
         setHovered(service.id)
         document.body.style.cursor = 'pointer'
       }}
       onPointerOut={() => {
+        if (compareMode !== 'staging' && !interactive) return
         setHovered(null)
         document.body.style.cursor = 'auto'
       }}
@@ -144,8 +153,8 @@ function TrafficBar({ service }: { service: Service }) {
         />
       </lineSegments>
 
-      {/* Tier tag on top — above whichever is taller (fill or cage). */}
-      {dim > 0.5 && (
+      {/* Tier tag — only on hover (kept off the overview to reduce clutter). */}
+      {hovered && (
         <Html
           position={[0, topH + 0.14, 0]}
           center

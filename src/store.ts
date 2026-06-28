@@ -145,24 +145,38 @@ export const useStore = create<AppState>((set, get) => ({
   hoveredId: null,
   blastSet: new Set(),
   select: (id) => {
+    if (!id) {
+      set({ selectedId: null, selectedEdgeId: null, blastSet: new Set<string>() })
+      return
+    }
     const g = get().graph
-    // Selection keeps the downstream blast set bright (everything else dims).
-    const blastSet = id && g ? new Set([id, ...blastRadius(g, id).keys()]) : new Set<string>()
+    // Retargeting WITHIN the current active topology (arrowing / clicking an
+    // already-highlighted node) keeps that set anchored, so traversal stays put.
+    // Selecting a node outside it (sidebar, fresh click) establishes a new set.
+    const cur = get().blastSet
+    if (get().selectedId && cur.has(id)) {
+      set({ selectedId: id, selectedEdgeId: null })
+      return
+    }
+    const blastSet = g ? new Set([id, ...blastRadius(g, id).keys()]) : new Set<string>([id])
     set({ selectedId: id, selectedEdgeId: null, blastSet })
   },
   setHovered: (id) => {
     const g = get().graph
+    // While a node is selected, the active topology is LOCKED to the selection's
+    // set — hover only changes emphasis, never the dim/active set. (This is what
+    // keeps traversal limited to the active topology.)
+    if (get().selectedId) {
+      set({ hoveredId: id })
+      return
+    }
     if (id && g) {
-      // Hover isolates the directly-connected neighbors (both directions) and
-      // dims everything else hard — "show me just what this touches".
+      // No selection: hovering isolates the node's directly-connected neighbors.
       const set1 = new Set<string>([id, ...(g.downstream[id] ?? []), ...(g.upstream[id] ?? [])])
       set({ hoveredId: id, blastSet: set1 })
       return
     }
-    // No hover: fall back to the selection's blast set (or clear).
-    const sel = get().selectedId
-    const blastSet = sel && g ? new Set([sel, ...blastRadius(g, sel).keys()]) : new Set<string>()
-    set({ hoveredId: null, blastSet })
+    set({ hoveredId: null, blastSet: new Set<string>() })
   },
 
   diagramOpen: false,

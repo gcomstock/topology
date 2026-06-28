@@ -8,14 +8,16 @@ export interface TrafficDomain {
   logMax: number
 }
 
-const MIN_H = 0.35 // world height of the smallest-traffic bar (always visible)
-const MAX_H = 2.6 // world height of the largest-traffic bar (the cap)
+const MIN_H = 0.3 // world height of the smallest-traffic bar (always visible)
+const MAX_H = 3.0 // world height of the largest-traffic bar (the cap)
+const GRAY_BELOW = 100 // exclude tiny "no data" services from the height domain
 
 export function trafficDomain(topo: Topology): TrafficDomain {
   let min = Infinity
   let max = -Infinity
   for (const s of topo.services) {
-    const v = Math.max(1, s.expectedTraffic)
+    const v = s.expectedTraffic
+    if (v < GRAY_BELOW) continue // don't let the gray outliers compress the scale
     if (v < min) min = v
     if (v > max) max = v
   }
