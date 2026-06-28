@@ -449,58 +449,161 @@
 }
 
 /* infra cubes */
-.infra {
+/* node hero — explains the selected node */
+.node-hero {
   display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
 }
-.infra .region-block .rlbl {
+.node-hero-viz {
+  position: relative;
+  width: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.nh-cage {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30px;
+  border: 1px solid var(--text-muted);
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+.nh-fill {
+  position: relative;
+  width: 26px;
+  border-radius: 2px 2px 0 0;
+}
+.node-hero-info {
+  flex: 1;
+  min-width: 0;
+}
+.nh-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--fs-tiny);
+}
+.nh-state {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: var(--fs-tiny);
+}
+.nh-traffic {
+  display: flex;
+  gap: 22px;
+  margin: 6px 0;
+}
+.nh-big {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.05;
+}
+.nh-big .unit {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+.nh-lbl {
   font-size: var(--fs-tiny);
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-top: 1px;
 }
-.cubes {
+.nh-why {
+  font-size: var(--fs-tiny);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* infrastructure — instances grouped by region */
+.inst-hd {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: var(--fs-tiny);
+}
+.inst-total {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.inst-regions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.inst-region {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+.inst-region-nm {
+  width: 104px;
+  flex-shrink: 0;
+  font-size: var(--fs-tiny);
+  color: var(--text-muted);
+  padding-top: 2px;
+}
+.inst-cubes {
   display: flex;
   flex-wrap: wrap;
   gap: 3px;
-  max-width: 150px;
 }
-.cube {
-  width: 11px;
-  height: 11px;
+.inst-cube {
+  width: 13px;
+  height: 13px;
   border-radius: 2px;
+  padding: 0;
+  border: 1px solid transparent;
   transform: skewX(-12deg);
+  cursor: pointer;
+  transition: outline 0.1s;
 }
-.region-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 180px;
+.inst-cube:hover {
+  outline: 1px solid var(--text-primary);
+  outline-offset: 1px;
 }
-.region-bar {
+.inst-cube.sel {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.inst-detail {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated-2);
+  padding: 8px 10px;
+}
+.inst-detail-hd {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: var(--fs-tiny);
 }
-.region-bar .nm {
-  width: 92px;
-  color: var(--text-muted);
+.inst-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }
-.region-bar .track {
-  flex: 1;
-  height: 7px;
-  background: var(--bg-elevated-2);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.region-bar .track .fl {
-  height: 100%;
-}
-.region-bar .ct {
-  width: 24px;
-  text-align: right;
+.inst-id {
+  font-weight: 600;
   color: var(--text-primary);
+}
+.inst-status {
+  font-size: var(--fs-tiny);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.inst-x {
+  cursor: pointer;
+  color: var(--text-muted);
 }
 
 /* inferred-diagram — full panel width when a node is open */

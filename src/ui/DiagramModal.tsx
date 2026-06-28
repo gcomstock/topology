@@ -35,7 +35,7 @@ export function DiagramModal() {
         </div>
         <div className="mbody" style={{ display: 'flex' }}>
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <ServiceDiagram service={svc} width={560} height={560} interactive />
+            <ServiceDiagram service={svc} width={560} height={440} vbW={620} vbH={460} interactive />
           </div>
           <div style={{ width: 300, borderLeft: '1px solid var(--border)', padding: 14, overflow: 'auto' }}>
             {edge ? (

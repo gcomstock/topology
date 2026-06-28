@@ -156,7 +156,8 @@ a:hover {
 }
 .node-label.selected {
   border-color: var(--accent);
-  color: var(--accent);
+  background: var(--accent);
+  color: #06201c;
 }
 .node-label.priority {
   border-color: var(--warning);

@@ -7,13 +7,17 @@ import type { ServiceSeries } from '../types'
 export const CELL = 0.34
 export const BASE_W = CELL * 3
 
-// Criticality is read as 3 levels (Tier-0 / Tier-1 / Tier-2). The data's 4 tiers
-// collapse: tier 4 (critical) → T0, tier 3 → T1, tier 1–2 → T2. Shown as a tag
-// on the box top rather than encoded in shape (the box height is traffic now).
+// Criticality is read as 3 levels. The data's 4 tiers collapse:
+//   tier 4 → T0 (critical) · tier 3 → T1 (important) · tier 1–2 → T2 (non-critical).
 export function tierLabel(tier: number): string {
   if (tier >= 4) return 'T0'
   if (tier === 3) return 'T1'
   return 'T2'
+}
+
+export function tierMeaning(tier: number): string {
+  const t = tierLabel(tier)
+  return t === 'T0' ? 'critical' : t === 'T1' ? 'important' : 'non-critical'
 }
 
 // Current bar height (world units) from live traffic at the clock. Shared so

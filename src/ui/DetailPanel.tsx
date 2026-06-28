@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useStore } from '../store'
 import { useTheme } from '../hooks'
 import { clockToMs } from '../lib/timeseries'
+import { tierLabel, tierMeaning } from '../scene/nodeShape'
 import { fmtAgo, fmtDateTime } from './format'
+import { NodeHero } from './NodeHero'
 import { GoldenSignals } from './GoldenSignals'
 import { InfraSummary } from './InfraSummary'
 import { ServiceDiagram } from './ServiceDiagram'
@@ -36,7 +38,6 @@ export function DetailPanel() {
   const bodyRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [multicol, setMulticol] = useState(false)
-  const [aboutOpen, setAboutOpen] = useState(false)
 
   const svc = data.topology.services.find((s) => s.id === selectedId)
   const nowMs = clockToMs(clock, tsMs)
@@ -85,10 +86,9 @@ export function DetailPanel() {
     return () => window.removeEventListener('keydown', onKey)
   }, [selectedId, priorityList, blastSet, positions, select])
 
-  // Reset scroll + about-collapse on retarget.
+  // Reset scroll on retarget.
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0
-    setAboutOpen(false)
   }, [selectedId])
 
   if (!svc) return null
@@ -109,34 +109,53 @@ export function DetailPanel() {
   const callees = graph.downstream[svc.id] ?? []
   const byId = Object.fromEntries(data.topology.services.map((s) => [s.id, s]))
 
+  const LIFE_COLOR: Record<string, string> = {
+    active: theme.healthGood,
+    maintenance: theme.warning,
+    deprecated: theme.textMuted,
+  }
+  const lifeChip = (
+    <span
+      className="chip"
+      style={{ color: LIFE_COLOR[svc.lifecycle] ?? theme.textMuted, borderColor: LIFE_COLOR[svc.lifecycle] ?? theme.border }}
+    >
+      {svc.lifecycle}
+    </span>
+  )
+
+  // ←/→ walk the active topology left→right by position.
+  const stepSpatial = (dir: 1 | -1) => {
+    const active = blastSet.size ? [...blastSet] : [svc.id]
+    const order = active.sort((a, b) => (positions[a]?.x ?? 0) - (positions[b]?.x ?? 0))
+    const i = order.indexOf(svc.id)
+    if (order.length > 1 && i >= 0) select(order[(i + dir + order.length) % order.length])
+  }
+
   return (
     <div className={'panel' + (multicol ? ' multicol' : '')} ref={panelRef}>
       <div className="phd">
         <span className="title">{svc.name}</span>
-        <span className="tier-pill" title={data.topology.meta.tierLegend[String(svc.tier)]}>
-          T{svc.tier}
+        <span className="tier-pill" title={`tier ${tierLabel(svc.tier)} · ${tierMeaning(svc.tier)}`}>
+          {tierLabel(svc.tier)}
         </span>
-        <span className="life-pill">{svc.lifecycle}</span>
+        {lifeChip}
         <span className="subtle" style={{ fontSize: 11 }}>{svc.team}</span>
         <div style={{ flex: 1 }} />
         <button onClick={startCompare} title="Compare with others">compare</button>
         <div className="nav">
-          <button title="Prev in active topology (↑)" onClick={() => {
-            const order = priorityList.map((p) => p.serviceId).filter((id) => blastSet.has(id))
-            const idx = order.indexOf(svc.id)
-            if (order.length > 1 && idx >= 0) select(order[(idx - 1 + order.length) % order.length])
-          }}>↑</button>
-          <button title="Next in active topology (↓)" onClick={() => {
-            const order = priorityList.map((p) => p.serviceId).filter((id) => blastSet.has(id))
-            const idx = order.indexOf(svc.id)
-            if (order.length > 1 && idx >= 0) select(order[(idx + 1) % order.length])
-          }}>↓</button>
+          <button title="Prev in active topology (←)" onClick={() => stepSpatial(-1)}>←</button>
+          <button title="Next in active topology (→)" onClick={() => stepSpatial(1)}>→</button>
         </div>
         <button className="x" onClick={() => select(null)} title="Close (Esc)">✕</button>
       </div>
 
       <div className="body" ref={bodyRef}>
-        {/* 1. Golden signals */}
+        {/* 0. This node — visual copy + traffic + why-the-color */}
+        <Section title="this service">
+          <NodeHero service={svc} />
+        </Section>
+
+        {/* 1. Golden signals (SLO burn first) */}
         <Section title="golden signals">
           {series ? <GoldenSignals series={series} /> : <div className="none">no telemetry</div>}
         </Section>
@@ -178,7 +197,7 @@ export function DetailPanel() {
         {/* 5. Inferred service diagram */}
         <Section title="inferred service diagram">
           <div className="diagram-thumb" onClick={openDiagram} title="Click to expand">
-            <ServiceDiagram service={svc} width={280} height={280} />
+            <ServiceDiagram service={svc} width="100%" height="100%" />
             <span className="expand-hint">⤢ expand</span>
           </div>
         </Section>
@@ -198,38 +217,39 @@ export function DetailPanel() {
           ))}
         </Section>
 
-        {/* 7. Ownership & contacts */}
+        {/* 7. Ownership & contacts — clean two-column */}
         <Section title="ownership & contacts">
           <div className="kv">
             <div className="k">team</div><div className="v">{svc.team}</div>
-            <div className="k">tier</div><div className="v">T{svc.tier} · {data.topology.meta.tierLegend[String(svc.tier)]}</div>
-            <div className="k">lifecycle</div><div className="v">{svc.lifecycle}</div>
+            <div className="k">tier</div><div className="v">{tierLabel(svc.tier)} · {tierMeaning(svc.tier)}</div>
+            <div className="k">lifecycle</div><div className="v"><div className="chips">{lifeChip}</div></div>
             <div className="k">owner</div><div className="v">{svc.owner.name} · {svc.owner.contact}</div>
             <div className="k">on-call</div><div className="v">{svc.onCall.name} · {svc.onCall.contact}</div>
           </div>
         </Section>
 
-        {/* datastores / regions / dependencies */}
-        <Section title="dependencies & infra detail">
-          <div className="kv" style={{ marginBottom: 8 }}>
+        {/* dependencies & infra — chips live in the value column */}
+        <Section title="dependencies & infra">
+          <div className="kv">
+            <div className="k">regions</div>
+            <div className="v"><div className="chips">{svc.regions.map((r) => <span className="chip" key={r}>{r}</span>)}</div></div>
+            <div className="k">datastores</div>
+            <div className="v">
+              <div className="chips">
+                {svc.datastores.length ? svc.datastores.map((d) => <span className="chip" key={d}>{d}</span>) : <span className="none">none</span>}
+              </div>
+            </div>
+            <div className="k">calls</div>
+            <div className="v">
+              <div className="chips">
+                {callees.length ? callees.map((d) => (
+                  <span className="chip" key={d} style={{ cursor: 'pointer' }} onClick={() => select(d)}>
+                    {byId[d]?.name ?? d}
+                  </span>
+                )) : <span className="none">none</span>}
+              </div>
+            </div>
             <div className="k">in-degree</div><div className="v">{svc.inDegree} callers</div>
-            <div className="k">depends on</div><div className="v">{callees.length} services</div>
-          </div>
-          <div className="rlbl subtle" style={{ marginBottom: 3 }}>regions</div>
-          <div className="chips" style={{ marginBottom: 8 }}>
-            {svc.regions.map((r) => <span className="chip" key={r}>{r}</span>)}
-          </div>
-          <div className="rlbl subtle" style={{ marginBottom: 3 }}>datastores</div>
-          <div className="chips" style={{ marginBottom: 8 }}>
-            {svc.datastores.length ? svc.datastores.map((d) => <span className="chip" key={d}>{d}</span>) : <span className="none">none</span>}
-          </div>
-          <div className="rlbl subtle" style={{ marginBottom: 3 }}>calls (downstream)</div>
-          <div className="chips">
-            {callees.length ? callees.map((d) => (
-              <span className="chip" key={d} style={{ cursor: 'pointer' }} onClick={() => select(d)}>
-                {byId[d]?.name ?? d}
-              </span>
-            )) : <span className="none">none</span>}
           </div>
         </Section>
 
@@ -255,12 +275,9 @@ export function DetailPanel() {
           </div>
         </Section>
 
-        {/* about — long-form, sans-serif, collapsible (calm read) */}
+        {/* about — long-form, sans-serif, always shown (calm read at the bottom) */}
         <Section title="about this service">
-          <div className="collapse-hd subtle" onClick={() => setAboutOpen((o) => !o)}>
-            {aboutOpen ? '▾ hide' : '▸ read'} narrative
-          </div>
-          {aboutOpen && <p className="about">{svc.about}</p>}
+          <p className="about">{svc.about}</p>
         </Section>
 
         <div className="faint" style={{ fontSize: 10, marginTop: 8 }}>

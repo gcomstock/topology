@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
+import { Line } from '@react-three/drei'
 import * as THREE from 'three'
 import { useStore } from '../store'
 import { useTheme } from '../hooks'
@@ -101,6 +102,19 @@ function TrafficBar({ service }: { service: Service }) {
   // "you are here" reference the fill bar visibly pokes above / falls short of.
   const rimGeom = useMemo(() => new THREE.BoxGeometry(BASE_W * 1.12, 0.001, BASE_W * 1.12), [])
 
+  // Box-edge segments for the fill BAR (selection/hover outline). Only the bar is
+  // outlined — never the expected cage — at a doubled stroke width.
+  const barEdges = useMemo(() => {
+    const w = BASE_W / 2
+    const h = actualH
+    const c = [
+      [-w, 0, -w], [w, 0, -w], [w, 0, w], [-w, 0, w],
+      [-w, h, -w], [w, h, -w], [w, h, w], [-w, h, w],
+    ].map(([x, y, z]) => new THREE.Vector3(x, y, z))
+    const E = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]
+    return E.flatMap(([a, b]) => [c[a], c[b]])
+  }, [actualH])
+
   return (
     <group
       position={[pos.x, pos.elev ?? 0, pos.y]}
@@ -132,25 +146,27 @@ function TrafficBar({ service }: { service: Service }) {
         />
       </mesh>
 
-      {/* Expected-traffic cage — static wireframe the fill is read against.
-          raycast disabled so only the solid bar captures hover/click. */}
+      {/* Expected-traffic cage — static neutral wireframe (never tinted by
+          selection; the fill is read against it). raycast off. */}
       <lineSegments position={[0, expectedH / 2, 0]} scale={[1, expectedH, 1]} raycast={() => null}>
         <edgesGeometry args={[cageGeom]} />
-        <lineBasicMaterial
-          color={selected || hovered ? outlineColor : theme.textMuted}
-          transparent
-          opacity={(selected || hovered ? 1 : 0.8) * dim}
-        />
+        <lineBasicMaterial color={theme.textMuted} transparent opacity={0.8 * dim} />
       </lineSegments>
       {/* Emphasized "expected" rim — the reference line the fill crosses. */}
       <lineSegments position={[0, expectedH, 0]} raycast={() => null}>
         <edgesGeometry args={[rimGeom]} />
-        <lineBasicMaterial
-          color={selected || hovered ? outlineColor : theme.textPrimary}
-          transparent
-          opacity={(selected || hovered ? 1 : 0.9) * dim}
-        />
+        <lineBasicMaterial color={theme.textPrimary} transparent opacity={0.9 * dim} />
       </lineSegments>
+      {/* Selection/hover outline — on the BAR only, doubled stroke width. */}
+      {(selected || hovered || inCompare) && (
+        <Line
+          points={barEdges}
+          segments
+          color={outlineColor}
+          lineWidth={selected ? 3 : 1.5}
+          raycast={() => null}
+        />
+      )}
 
     </group>
   )

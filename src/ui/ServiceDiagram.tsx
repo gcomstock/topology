@@ -6,16 +6,18 @@ import type { Service } from '../types'
 
 interface Props {
   service: Service
-  width: number
-  height: number
+  width: number | string
+  height: number | string
   interactive?: boolean
+  // viewBox dimensions — landscape by default so the thumbnail is wide + short
+  // with small elements; the modal passes a larger box.
+  vbW?: number
+  vbH?: number
 }
 
 // Boundary-level diagram generated from the (dummy) telemetry: the service, its
 // real inputs (callers) and outputs (callees) from edge data, plus datastores.
-// Legible at 280×280; identical behavior at modal size (conditional legibility,
-// not conditional layout).
-export function ServiceDiagram({ service, width, height, interactive }: Props) {
+export function ServiceDiagram({ service, width, height, interactive, vbW = 560, vbH = 240 }: Props) {
   const theme = useTheme()
   const data = useStore((s) => s.data)!
   const clock = useStore((s) => s.clock)
@@ -27,11 +29,10 @@ export function ServiceDiagram({ service, width, height, interactive }: Props) {
   const callers = (graph.upstream[service.id] ?? []).slice(0, 6)
   const callees = (graph.downstream[service.id] ?? []).slice(0, 6)
 
-  const vb = 280
-  const cx = vb / 2
-  const cy = vb / 2
+  const cx = vbW / 2
+  const cy = vbH / 2
   const inX = 30
-  const outX = vb - 30
+  const outX = vbW - 30
 
   const edgeId = (src: string, tgt: string) => graph.edgeBySrcTgt[`${src}->${tgt}`]
   const edgeHealth = (id?: string) =>
@@ -39,7 +40,7 @@ export function ServiceDiagram({ service, width, height, interactive }: Props) {
 
   const slot = (i: number, count: number) => {
     if (count <= 1) return cy
-    return 50 + (i / (count - 1)) * (vb - 100)
+    return 36 + (i / (count - 1)) * (vbH - 72)
   }
 
   const node = (id: string, x: number, y: number, key: string, eid?: string) => {
@@ -90,8 +91,8 @@ export function ServiceDiagram({ service, width, height, interactive }: Props) {
   }
 
   return (
-    <svg viewBox={`0 0 ${vb} ${vb}`} width={width} height={height}>
-      <rect x={0} y={0} width={vb} height={vb} fill={theme.bgElevated} />
+    <svg viewBox={`0 0 ${vbW} ${vbH}`} width={width} height={height} preserveAspectRatio="xMidYMid meet">
+      <rect x={0} y={0} width={vbW} height={vbH} fill={theme.bgElevated} />
       {/* labels */}
       <text x={inX} y={20} fontSize={8} fill={theme.textMuted} fontFamily="var(--mono)">
         inputs ›
@@ -135,9 +136,9 @@ export function ServiceDiagram({ service, width, height, interactive }: Props) {
         const x = cx + (i - (n - 1) / 2) * 52
         return (
           <g key={'ds-' + ds}>
-            <line x1={cx} y1={cy + 16} x2={x} y2={vb - 22} stroke={theme.border} strokeWidth={1} strokeDasharray="2 2" />
-            <rect x={x - 22} y={vb - 32} width={44} height={16} rx={8} fill={theme.bgElevated2} stroke={theme.border} />
-            <text x={x} y={vb - 21} textAnchor="middle" fontSize={7.5} fill={theme.textMuted} fontFamily="var(--mono)">
+            <line x1={cx} y1={cy + 16} x2={x} y2={vbH - 22} stroke={theme.border} strokeWidth={1} strokeDasharray="2 2" />
+            <rect x={x - 22} y={vbH - 32} width={44} height={16} rx={8} fill={theme.bgElevated2} stroke={theme.border} />
+            <text x={x} y={vbH - 21} textAnchor="middle" fontSize={7.5} fill={theme.textMuted} fontFamily="var(--mono)">
               {ds.slice(0, 9)}
             </text>
           </g>
