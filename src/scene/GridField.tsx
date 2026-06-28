@@ -16,6 +16,15 @@ const CHRONIC_AMP = 0.34 // depth per unit burnSlow
 const CHRONIC_SIGMA = 1.5 // broad, shallow basin
 const MAX_DEPTH = 3.0
 const DEPTH_REF = 2.0 // depth that maps to full red
+// Distance-fade: grid is solid within FADE_NEAR of any node and dissolves into
+// the background by FADE_FAR, so empty margins don't read as busy hatching.
+const FADE_NEAR = 2.2
+const FADE_FAR = 5.5
+
+function smoothstep(a: number, b: number, x: number) {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)))
+  return t * t * (3 - 2 * t)
+}
 
 export function GridField() {
   const theme = useTheme()
@@ -89,6 +98,7 @@ export function GridField() {
     const gray = new THREE.Color(theme.textFaint) // visible gray on black
     const amber = new THREE.Color(theme.healthMid)
     const red = new THREE.Color(theme.healthBad)
+    const bg = new THREE.Color(theme.bgBase)
     const burn = new THREE.Color()
     const tmp = new THREE.Color()
     for (let i = 0; i < nx; i++) {
@@ -96,10 +106,12 @@ export function GridField() {
       for (let j = 0; j < nz; j++) {
         const wz = (j0 + j) * CELL
         let d = 0
+        let minD2 = Infinity
         for (const n of nodes) {
           const dx = wx - n.x
           const dz = wz - n.z
           const d2 = dx * dx + dz * dz
+          if (d2 < minD2) minD2 = d2
           if (n.fast > 0.05) d += n.fast * ACUTE_AMP * Math.exp(-d2 / (2 * ACUTE_SIGMA * ACUTE_SIGMA))
           if (n.slow > 0.03) d += n.slow * CHRONIC_AMP * Math.exp(-d2 / (2 * CHRONIC_SIGMA * CHRONIC_SIGMA))
         }
@@ -116,6 +128,9 @@ export function GridField() {
           tmp.copy(gray).lerp(burn, Math.min(1, d01 * 1.6))
           tmp.multiplyScalar(1 + d01 * 0.8)
         }
+        // Fade toward the background by distance to the nearest node.
+        const fade = smoothstep(FADE_NEAR, FADE_FAR, Math.sqrt(minD2))
+        if (fade > 0) tmp.lerp(bg, fade)
         lcol[li * 3] = tmp.r
         lcol[li * 3 + 1] = tmp.g
         lcol[li * 3 + 2] = tmp.b
