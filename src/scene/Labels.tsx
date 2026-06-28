@@ -1,46 +1,24 @@
 import { Html } from '@react-three/drei'
 import { useStore } from '../store'
-import type { Service } from '../types'
-
-const STEP_H = 0.16
+import { critSteps, STEP_H } from './nodeShape'
 
 function labelY(tier: number) {
-  return tier * STEP_H + 0.22
+  return critSteps(tier) * STEP_H + 0.24
 }
 
-// Decluttering: render labels only for the active node + its neighbors +
-// high-priority nodes (+ hovered). Others reveal on hover. Avoids thousands of
-// DOM labels (spec §4).
+// Every service is labelled (the layered + isometric arrangement gives enough
+// room). Selection/priority drive emphasis, not visibility.
 export function Labels() {
   const services = useStore((s) => s.data?.topology.services ?? [])
   const positions = useStore((s) => s.positions)
   const selectedId = useStore((s) => s.selectedId)
-  const hoveredId = useStore((s) => s.hoveredId)
-  const graph = useStore((s) => s.graph)
   const priorityTop = useStore((s) => s.priorityTop)
-  const compareIds = useStore((s) => s.compareIds)
-
-  const focus = hoveredId ?? selectedId
-  const neighbors = new Set<string>()
-  if (focus && graph) {
-    for (const n of graph.downstream[focus] ?? []) neighbors.add(n)
-    for (const n of graph.upstream[focus] ?? []) neighbors.add(n)
-  }
-
-  const shouldShow = (s: Service) => {
-    if (s.id === selectedId || s.id === hoveredId) return true
-    if (neighbors.has(s.id)) return true
-    if (priorityTop.has(s.id)) return true
-    if (compareIds.includes(s.id)) return true
-    if (s.tier >= 4) return true
-    return false
-  }
 
   return (
     <group>
       {services.map((s) => {
         const pos = positions[s.id]
-        if (!pos || !shouldShow(s)) return null
+        if (!pos) return null
         const cls =
           'node-label' +
           (s.id === selectedId ? ' selected' : '') +
@@ -48,7 +26,7 @@ export function Labels() {
         return (
           <Html
             key={s.id}
-            position={[pos.x, labelY(s.tier), pos.y]}
+            position={[pos.x, (pos.elev ?? 0) + labelY(s.tier), pos.y]}
             center
             zIndexRange={[100, 0]}
             style={{ pointerEvents: 'none' }}

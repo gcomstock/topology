@@ -37,7 +37,10 @@ function EdgeLine({ edge }: { edge: Edge }) {
 
   const points = useMemo(() => {
     if (!a || !b) return [new THREE.Vector3(), new THREE.Vector3()]
-    return [new THREE.Vector3(a.x, EDGE_Y, a.y), new THREE.Vector3(b.x, EDGE_Y, b.y)]
+    return [
+      new THREE.Vector3(a.x, (a.elev ?? 0) + EDGE_Y, a.y),
+      new THREE.Vector3(b.x, (b.elev ?? 0) + EDGE_Y, b.y),
+    ]
   }, [a, b])
 
   const color = useMemo(() => healthColor(health, theme), [health, theme])

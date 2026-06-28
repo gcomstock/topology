@@ -24,14 +24,23 @@ export function TopBar() {
 
       <div className="seg" title="Graph layout">
         <button
+          className={layoutMode === 'layered' ? 'active' : ''}
+          onClick={() => setLayoutMode('layered')}
+          title="Layered by dependency depth (altitude = layer)"
+        >
+          layered
+        </button>
+        <button
           className={layoutMode === 'flow' ? 'active' : ''}
           onClick={() => setLayoutMode('flow')}
+          title="Flat left→right DAG"
         >
           flow
         </button>
         <button
           className={layoutMode === 'organic' ? 'active' : ''}
           onClick={() => setLayoutMode('organic')}
+          title="Force-directed clusters"
         >
           organic
         </button>

@@ -130,8 +130,12 @@ export interface AppData {
   incidents: IncidentsFile
 }
 
-// Computed-at-runtime layout position
+// Computed-at-runtime layout position.
+//   x    → world X (horizontal)
+//   y    → world Z (horizontal depth)
+//   elev → world Y (altitude; undefined/0 for flat layouts)
 export interface NodePosition {
   x: number
   y: number
+  elev?: number
 }

@@ -5,18 +5,16 @@ import { useStore } from '../store'
 import { useTheme } from '../hooks'
 import { healthColor } from '../lib/color'
 import { sampleAt, nearestIndex } from '../lib/timeseries'
+import { critSteps, STEP_H, BASE_W } from './nodeShape'
 import type { Service } from '../types'
 
-const STEP_H = 0.16
-const BASE_W = 0.52
-
-// Geometry for a stepped/ziggurat pyramid with `tier` stacked steps.
-// More tiers = taller + more stepped = more critical (counting steps is the read).
-function stepBoxes(tier: number) {
+// Geometry for a stepped/ziggurat pyramid with `steps` stacked steps.
+// More steps = taller + more stepped = more critical (counting steps is the read).
+function stepBoxes(steps: number) {
   const boxes: { w: number; y: number; h: number }[] = []
-  for (let i = 0; i < tier; i++) {
-    const w = BASE_W * (1 - i * (0.62 / Math.max(tier, 1)))
-    boxes.push({ w: Math.max(0.12, w), y: i * STEP_H + STEP_H / 2, h: STEP_H })
+  for (let i = 0; i < steps; i++) {
+    const w = BASE_W * (1 - i * (0.5 / Math.max(steps, 1)))
+    boxes.push({ w: Math.max(0.16, w), y: i * STEP_H + STEP_H / 2, h: STEP_H })
   }
   return boxes
 }
@@ -35,7 +33,7 @@ function PyramidNode({ service }: { service: Service }) {
   const toggleCompareId = useStore((s) => s.toggleCompareId)
   const blast = useStore((s) => s.blastSet)
 
-  const boxes = useMemo(() => stepBoxes(service.tier), [service.tier])
+  const boxes = useMemo(() => stepBoxes(critSteps(service.tier)), [service.tier])
   const matRef = useRef<THREE.MeshStandardMaterial[]>([])
 
   const series = data.timeseries.perService[service.id]
@@ -43,18 +41,20 @@ function PyramidNode({ service }: { service: Service }) {
   const health = sampleAt(series?.health, clock)
   const sampleCount = series ? series.sampleCount[nearestIndex(clock, series.sampleCount.length)] : 5000
 
-  // Opacity = confidence/data quality. Low sample → ghostly. No data → gray handled below.
-  const confidence = Math.max(0.18, Math.min(1, sampleCount / 2500))
+  // Opacity = confidence/data quality. Low sample → slightly ghostly (but still
+  // clearly visible — floor kept high so nothing disappears). No data → gray.
+  const confidence = Math.max(0.55, Math.min(1, sampleCount / 2500))
   const hasData = sampleCount > 0
 
   const selected = selectedId === service.id
   const hovered = hoveredId === service.id
   const inCompare = compareIds.includes(service.id)
 
-  // Blast dimming: when a blast set is active, non-members dim.
+  // Blast dimming: when a blast set is active, non-members recede but stay
+  // visible (everything remains legible per the dense-but-readable goal).
   const blastActive = blast.size > 0
   const inBlast = selected || blast.has(service.id)
-  const dim = blastActive && !inBlast ? 0.22 : 1
+  const dim = blastActive && !inBlast ? 0.5 : 1
 
   // Glow = acute health urgency only (dynamic). Healthy nodes never glow.
   const glow = Math.max(0, burnFast - 0.25)
@@ -63,10 +63,11 @@ function PyramidNode({ service }: { service: Service }) {
     [health, theme, hasData],
   )
   const baseColor = useMemo(() => {
-    if (!hasData) return new THREE.Color(theme.nodata)
-    // neutral metallic body, tinted slightly toward health when burning
-    const neutral = new THREE.Color(theme.textFaint)
-    return neutral.clone().lerp(healthColor(health, theme), Math.min(0.6, glow * 0.25))
+    // Bright, theme-adaptive neutral body (criticality is the shape, not color),
+    // tinted toward health only when actively burning. No-data → gray.
+    const neutral = new THREE.Color(theme.textMuted).lerp(new THREE.Color(theme.textPrimary), 0.45)
+    if (!hasData) return new THREE.Color(theme.nodata).lerp(neutral, 0.2)
+    return neutral.clone().lerp(healthColor(health, theme), Math.min(0.65, glow * 0.25))
   }, [theme, hasData, health, glow])
 
   // Per-frame subtle glow pulse around the burn-derived base intensity.
@@ -85,7 +86,7 @@ function PyramidNode({ service }: { service: Service }) {
     ? theme.accent
     : hovered || inCompare
     ? theme.accentBlue
-    : theme.border
+    : theme.textMuted
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
@@ -95,7 +96,7 @@ function PyramidNode({ service }: { service: Service }) {
 
   return (
     <group
-      position={[pos.x, 0, pos.y]}
+      position={[pos.x, pos.elev ?? 0, pos.y]}
       onClick={onClick}
       onPointerOver={(e) => {
         e.stopPropagation()
@@ -118,19 +119,19 @@ function PyramidNode({ service }: { service: Service }) {
               color={baseColor}
               emissive={glowColor}
               emissiveIntensity={0}
-              metalness={0.35}
-              roughness={0.55}
-              transparent={confidence < 0.99}
+              metalness={0.25}
+              roughness={0.5}
+              transparent={confidence * dim < 0.99}
               opacity={confidence * dim}
             />
           </mesh>
-          {/* Emissive-ish neutral outline so silhouette stays readable. */}
+          {/* Neutral outline so the silhouette stays readable against terrain/edges. */}
           <lineSegments>
             <edgesGeometry args={[new THREE.BoxGeometry(b.w, b.h, b.w)]} />
             <lineBasicMaterial
               color={outlineColor}
               transparent
-              opacity={(selected || hovered ? 0.95 : 0.5) * dim}
+              opacity={(selected || hovered ? 1 : 0.7) * dim}
             />
           </lineSegments>
         </group>

@@ -85,7 +85,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({ themeName: next })
   },
 
-  layoutMode: (localStorage.getItem('layoutMode') as LayoutMode) || 'flow',
+  layoutMode: (localStorage.getItem('layoutMode') as LayoutMode) || 'layered',
   setLayoutMode: (m) => {
     const data = get().data
     localStorage.setItem('layoutMode', m)

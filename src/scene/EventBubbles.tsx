@@ -1,9 +1,9 @@
 import { Html } from '@react-three/drei'
 import { useStore } from '../store'
 import { clockToMs } from '../lib/timeseries'
+import { nodeHeight } from './nodeShape'
 import type { SystemEvent } from '../types'
 
-const STEP_H = 0.16
 const WINDOW_MS = 22 * 60 * 1000 // ±22 min fade window (persistence-and-decay)
 
 const GLYPH: Record<SystemEvent['type'], string> = {
@@ -44,7 +44,7 @@ export function EventBubbles() {
         return (
           <Html
             key={ev.id}
-            position={[p.x, tier * STEP_H + 0.62, p.y]}
+            position={[p.x, (p.elev ?? 0) + nodeHeight(tier) + 0.62, p.y]}
             center
             zIndexRange={[120, 10]}
             style={{ pointerEvents: 'none' }}
