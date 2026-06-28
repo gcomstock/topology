@@ -1,8 +1,11 @@
 // Shared node-geometry constants so pyramids, labels, and event bubbles agree
 // on how tall a node is.
 
+// Grid cell size. A node's footprint is 3×3 cells, so the base width is 3·CELL.
+// Flow-layout node positions snap to this grid so everything rests on it cleanly.
+export const CELL = 0.34
 export const STEP_H = 0.2
-export const BASE_W = 0.95
+export const BASE_W = CELL * 3
 
 // Criticality is read as 3 levels (the common Tier-0 / Tier-1 / Tier-2 scheme),
 // so the data's 4 tiers collapse to 1–3 stacked steps:

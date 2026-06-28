@@ -108,7 +108,7 @@ function PyramidNode({ service }: { service: Service }) {
     >
       {boxes.map((b, i) => (
         <group key={i} position={[0, b.y, 0]}>
-          <mesh castShadow receiveShadow>
+          <mesh>
             <boxGeometry args={[b.w, b.h, b.w]} />
             <meshStandardMaterial
               ref={(m) => {

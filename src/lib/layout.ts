@@ -8,48 +8,68 @@ import {
   type SimulationNodeDatum,
 } from 'd3-force'
 import type { Topology, NodePosition } from '../types'
+import { CELL } from '../scene/nodeShape'
 
 export type LayoutMode = 'layered' | 'flow' | 'organic'
 
-// World-space scale. Dagre emits pixel-ish coordinates; we scale down to a
-// comfortable Three.js world size and center on the origin.
-const FLOW_SCALE = 0.018
 const ORGANIC_SCALE = 0.09
 
 // Flow-ordering: layered DAG, left→right. Upstream (callers) on the left,
 // downstream (callees) on the right. Edge source→target = caller→callee, so
 // rankdir LR places sources left of targets. Computed once, then frozen.
+//
+// Dagre runs in GRID-CELL units (node = 3×3 cells, nodesep/ranksep in cells),
+// then every node center is snapped to an integer cell so it rests cleanly on
+// the GridField lattice (lines at k·CELL). Collisions are nudged apart so
+// neighbours keep at least a one-cell gap.
+const NODE_CELLS = 3
+const NODESEP_CELLS = 2 // ≥1-cell gap between siblings
+const RANKSEP_CELLS = 6
+
 export function flowLayout(topo: Topology): Record<string, NodePosition> {
   const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir: 'LR', nodesep: 26, ranksep: 90, marginx: 20, marginy: 20 })
+  g.setGraph({
+    rankdir: 'LR',
+    nodesep: NODESEP_CELLS,
+    ranksep: RANKSEP_CELLS,
+    marginx: 1,
+    marginy: 1,
+  })
   g.setDefaultEdgeLabel(() => ({}))
 
-  for (const s of topo.services) {
-    g.setNode(s.id, { width: 40, height: 40 })
-  }
+  for (const s of topo.services) g.setNode(s.id, { width: NODE_CELLS, height: NODE_CELLS })
   for (const e of topo.edges) {
     if (g.hasNode(e.source) && g.hasNode(e.target)) g.setEdge(e.source, e.target)
   }
 
   dagre.layout(g)
 
-  // Center the graph on origin.
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  // Use ONLY dagre's rank (x) and within-rank ORDER (y) — not its absolute
+  // coordinates, which balloon with dummy nodes from long cross-rank edges (a
+  // 31-degree hub inflates the cross-axis to ~1800 units). Re-place each rank
+  // compactly on the cell grid instead.
+  const RANK_STRIDE = NODE_CELLS + RANKSEP_CELLS // cells between rank columns
+  const ROW_STRIDE = NODE_CELLS + NODESEP_CELLS // cells between rows in a rank
+
+  const ranks = new Map<number, { id: string; y: number }[]>()
   for (const s of topo.services) {
     const n = g.node(s.id)
-    if (!n) continue
-    minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x)
-    minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y)
+    const rx = n ? Math.round(n.x) : 0
+    if (!ranks.has(rx)) ranks.set(rx, [])
+    ranks.get(rx)!.push({ id: s.id, y: n ? n.y : 0 })
   }
-  const cx = (minX + maxX) / 2
-  const cy = (minY + maxY) / 2
+  const rankKeys = [...ranks.keys()].sort((a, b) => a - b)
+  const centerCol = ((rankKeys.length - 1) * RANK_STRIDE) / 2
 
   const out: Record<string, NodePosition> = {}
-  for (const s of topo.services) {
-    const n = g.node(s.id)
-    if (!n) { out[s.id] = { x: 0, y: 0 }; continue }
-    out[s.id] = { x: (n.x - cx) * FLOW_SCALE, y: (n.y - cy) * FLOW_SCALE }
-  }
+  rankKeys.forEach((rk, ri) => {
+    const members = ranks.get(rk)!.sort((a, b) => a.y - b.y)
+    const gx = ri * RANK_STRIDE - centerCol
+    members.forEach((m, i) => {
+      const gz = (i - (members.length - 1) / 2) * ROW_STRIDE
+      out[m.id] = { x: gx * CELL, y: gz * CELL }
+    })
+  })
   return out
 }
 
