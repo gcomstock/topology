@@ -521,6 +521,36 @@
   color: var(--text-muted);
   line-height: 1.5;
 }
+.nh-priority {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.nh-pri-score {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--warning);
+  line-height: 1;
+  min-width: 44px;
+}
+.nh-pri-text {
+  min-width: 0;
+}
+.nh-pri-lbl {
+  font-size: var(--fs-tiny);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.nh-pri-explain {
+  font-size: var(--fs-tiny);
+  color: var(--text-faint);
+  line-height: 1.45;
+  margin-top: 1px;
+}
 
 /* infrastructure — instances grouped by region */
 .inst-hd {

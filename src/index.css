@@ -105,10 +105,14 @@ a:hover {
   overflow: hidden;
 }
 
-/* The canvas region shrinks when the detail panel opens (ratio shift). */
+/* The canvas region shrinks when the detail panel opens (ratio shift).
+   isolate makes this a stacking context so the scene's drei <Html> labels/bubbles
+   (which carry their own high z-index) stay contained BELOW the sidebar (z 30),
+   panel, and diagram modal (z 60) — they no longer float over the UI chrome. */
 .canvas-host {
   position: absolute;
   inset: 0;
+  isolation: isolate;
   transition: right 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
