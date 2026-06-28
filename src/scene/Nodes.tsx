@@ -41,20 +41,19 @@ function PyramidNode({ service }: { service: Service }) {
   const health = sampleAt(series?.health, clock)
   const sampleCount = series ? series.sampleCount[nearestIndex(clock, series.sampleCount.length)] : 5000
 
-  // Opacity = confidence/data quality. Low sample → slightly ghostly (but still
-  // clearly visible — floor kept high so nothing disappears). No data → gray.
-  const confidence = Math.max(0.55, Math.min(1, sampleCount / 2500))
-  const hasData = sampleCount > 0
+  // Health is communicated by COLOR (not opacity) in this demo. A handful of
+  // very-low-sample services render gray to show what "no data" looks like.
+  const hasData = sampleCount > 15
 
   const selected = selectedId === service.id
   const hovered = hoveredId === service.id
   const inCompare = compareIds.includes(service.id)
 
-  // Blast dimming: when a blast set is active, non-members recede but stay
-  // visible (everything remains legible per the dense-but-readable goal).
+  // Hover/selection dimming: when a highlight set is active, non-members dim
+  // hard so only the associated services stand out.
   const blastActive = blast.size > 0
   const inBlast = selected || blast.has(service.id)
-  const dim = blastActive && !inBlast ? 0.5 : 1
+  const dim = blastActive && !inBlast ? 0.12 : 1
 
   // Glow = acute health urgency only (dynamic). Healthy nodes never glow.
   const glow = Math.max(0, burnFast - 0.25)
@@ -63,12 +62,11 @@ function PyramidNode({ service }: { service: Service }) {
     [health, theme, hasData],
   )
   const baseColor = useMemo(() => {
-    // Bright, theme-adaptive neutral body (criticality is the shape, not color),
-    // tinted toward health only when actively burning. No-data → gray.
-    const neutral = new THREE.Color(theme.textMuted).lerp(new THREE.Color(theme.textPrimary), 0.45)
-    if (!hasData) return new THREE.Color(theme.nodata).lerp(neutral, 0.2)
-    return neutral.clone().lerp(healthColor(health, theme), Math.min(0.65, glow * 0.25))
-  }, [theme, hasData, health, glow])
+    // Body color = health (green→amber→red). Criticality stays in the shape.
+    // No-data services render gray to demonstrate the missing-data state.
+    if (!hasData) return new THREE.Color(theme.nodata)
+    return healthColor(health, theme)
+  }, [theme, hasData, health])
 
   // Per-frame subtle glow pulse around the burn-derived base intensity.
   useFrame((state) => {
@@ -121,8 +119,8 @@ function PyramidNode({ service }: { service: Service }) {
               emissiveIntensity={0}
               metalness={0.25}
               roughness={0.5}
-              transparent={confidence * dim < 0.99}
-              opacity={confidence * dim}
+              transparent
+              opacity={dim}
             />
           </mesh>
           {/* Neutral outline so the silhouette stays readable against terrain/edges. */}

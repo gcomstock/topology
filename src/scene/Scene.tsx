@@ -23,7 +23,7 @@ const POSES: Record<
 > = {
   // Gentle azimuth/elevation: layer width runs screen-horizontal, the layer
   // stack runs screen-vertical, and the shallow Z gives the 3/4 isometric tilt.
-  layered: { pos: [12, 28, 42], target: [0, 13, 0], zoom: 27 },
+  layered: { pos: [12, 26, 42], target: [0, 11, 0], zoom: 28 },
   flow: { pos: [16, 20, 30], target: [0, 0, 0], zoom: 28 },
   organic: { pos: [16, 20, 30], target: [0, 0, 0], zoom: 28 },
 }

@@ -25,9 +25,6 @@ function EdgeLine({ edge }: { edge: Edge }) {
   const clock = useStore((s) => s.clock)
   const data = useStore((s) => s.data)!
   const blast = useStore((s) => s.blastSet)
-  const selectedId = useStore((s) => s.selectedId)
-  const hoveredId = useStore((s) => s.hoveredId)
-
   const lineRef = useRef<any>(null)
 
   const series = data.timeseries.perEdge[edge.id]
@@ -46,15 +43,15 @@ function EdgeLine({ edge }: { edge: Edge }) {
   const color = useMemo(() => healthColor(health, theme), [health, theme])
 
   const blastActive = blast.size > 0
-  const focus = hoveredId ?? selectedId
-  // Highlight edges along the blast path (target in blast set & source is focus or also affected)
-  const onPath =
-    blastActive && (blast.has(edge.source) || blast.has(edge.target) || edge.target === focus || edge.source === focus)
-  const dim = blastActive && !onPath ? 0.12 : 1
+  // An edge is "associated" only if BOTH endpoints are in the highlight set, so
+  // hovering a node lights up just its incident edges and dims the rest hard.
+  const onPath = blastActive && blast.has(edge.source) && blast.has(edge.target)
+  const dim = blastActive && !onPath ? 0.05 : 1
 
   useFrame((_, delta) => {
     if (lineRef.current?.material) {
-      lineRef.current.material.dashOffset -= speed * delta * 0.5
+      // Slow crawl — fast enough to read direction, calm enough not to distract.
+      lineRef.current.material.dashOffset -= speed * delta * 0.2
     }
   })
 

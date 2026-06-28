@@ -21,11 +21,11 @@ To regenerate or reshape the data, edit and run **`gen_data.py`** (`python3 gen_
 
 | Property | Value |
 |---|---|
-| Services | 34, across 5 dependency layers |
-| Edges | 81 (caller → callee), with contracts |
+| Services | 62, across 5 dependency layers |
+| Edges | 142 (caller → callee), with contracts |
 | Time window | `2026-06-27T00:00:00Z` → `12:00:00Z` |
 | Resolution | 5-minute steps · 145 timesteps · **live = last index (12:00)** |
-| Hub service | `svc-auth` (auth-service), **in-degree 18** — the legibility stress test |
+| Hub service | `svc-auth` (auth-service), **in-degree 31** — the legibility stress test |
 | Baked stories | hero propagation · regional common-cause · chronic slow-burn · low-sample nodes |
 
 All time-series arrays are **index-aligned to `timeseries.timestamps`** — element `i` of every series corresponds to `timestamps[i]`.

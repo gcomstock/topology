@@ -87,6 +87,47 @@ SVC = [
     ("svc-email-worker", "email-worker", 1, "Comms", 4, ["us-east-1"], ["kafka-events"], "maintenance"),
 ]
 
+# --- stress-test fillers: densify each shelf (added to ~2x the service count) ---
+SVC += [
+    # Layer 0 - edge / BFF
+    ("svc-partner-api", "partner-api", 3, "Platform", 0, ["us-east-1","eu-west-1"], [], "active"),
+    ("svc-admin-bff", "admin-bff", 2, "Platform", 0, ["us-east-1"], [], "active"),
+    ("svc-graphql-gateway", "graphql-gateway", 3, "Platform", 0, ["us-east-1","us-west-2"], [], "active"),
+
+    # Layer 1 - orchestration APIs
+    ("svc-returns-api", "returns-api", 2, "Fulfillment", 1, ["us-east-1"], ["pg-orders"], "active"),
+    ("svc-gifting-api", "gifting-api", 2, "Growth", 1, ["us-east-1"], [], "active"),
+    ("svc-loyalty-api", "loyalty-api", 2, "Growth", 1, ["us-east-1","eu-west-1"], ["pg-loyalty"], "active"),
+    ("svc-address-api", "address-api", 2, "Identity", 1, ["us-east-1"], ["pg-users"], "active"),
+    ("svc-storefront-api", "storefront-api", 3, "Catalog", 1, ["us-east-1","eu-west-1"], ["pg-catalog"], "active"),
+
+    # Layer 2 - domain services (the densest shelf)
+    ("svc-shipping-rates", "shipping-rates", 2, "Fulfillment", 2, ["us-east-1"], [], "active"),
+    ("svc-currency", "currency-service", 2, "Payments", 2, ["us-east-1","eu-west-1"], [], "active"),
+    ("svc-allocator", "inventory-allocator", 3, "Fulfillment", 2, ["us-east-1","us-west-2"], ["pg-inventory"], "active"),
+    ("svc-media", "catalog-media", 1, "Catalog", 2, ["us-east-1"], ["s3-media"], "active"),
+    ("svc-ratings", "ratings-service", 1, "Catalog", 2, ["us-east-1"], ["pg-reviews"], "active"),
+    ("svc-giftcard", "gift-card-service", 3, "Payments", 2, ["us-east-1"], ["pg-billing"], "active"),
+    ("svc-refund", "refund-service", 3, "Payments", 2, ["us-east-1","eu-west-1"], ["pg-ledger"], "active"),
+    ("svc-dispute", "dispute-service", 2, "Payments", 2, ["us-east-1"], ["pg-fraud"], "active"),
+    ("svc-loyalty-engine", "loyalty-engine", 1, "Growth", 2, ["us-east-1"], ["pg-loyalty"], "active"),
+
+    # Layer 3 - platform / data-access
+    ("svc-kms", "kms-proxy", 4, "Platform", 3, ["us-east-1","us-west-2"], [], "active"),
+    ("svc-ratelimit", "rate-limiter", 3, "Platform", 3, ["us-east-1","eu-west-1"], ["redis-flags"], "active"),
+    ("svc-schema-registry", "schema-registry", 2, "Data", 3, ["us-east-1"], ["pg-config"], "active"),
+    ("svc-geo", "geo-service", 2, "Platform", 3, ["us-east-1","eu-west-1"], [], "active"),
+    ("svc-metrics-agg", "metrics-aggregator", 1, "Data", 3, ["us-east-1"], ["pg-audit"], "active"),
+    ("svc-token-cache", "token-cache", 3, "Identity", 3, ["us-east-1","us-west-2"], ["redis-sessions"], "active"),
+
+    # Layer 4 - async workers / sinks
+    ("svc-push-dispatch", "push-dispatch", 1, "Comms", 4, ["us-east-1"], [], "active"),
+    ("svc-webhook-sender", "webhook-sender", 1, "Platform", 4, ["us-east-1"], ["kafka-events"], "active"),
+    ("svc-export-worker", "export-worker", 1, "Data", 4, ["us-east-1"], ["kafka-events"], "active"),
+    ("svc-reindex-worker", "reindex-worker", 1, "Search", 4, ["us-east-1"], ["es-products"], "active"),
+    ("svc-ledger-archiver", "ledger-archiver", 2, "Payments", 4, ["us-east-1"], ["pg-ledger"], "maintenance"),
+]
+
 svc_by_id = {s[0]: s for s in SVC}
 
 # ----------------------------------------------------------------------------
@@ -127,6 +168,44 @@ DEPS = {
     "svc-email-dispatch": ["svc-email-worker"],
     "svc-feature-flags": ["svc-config"],
 }
+
+# Filler dependencies (downstream/acyclic) + a few new callers for the fillers.
+DEPS.update({
+    "svc-partner-api": ["svc-order-orchestrator","svc-catalog-api","svc-auth"],
+    "svc-admin-bff": ["svc-account-api","svc-config","svc-auth"],
+    "svc-graphql-gateway": ["svc-catalog-api","svc-search-api","svc-account-api","svc-auth"],
+    "svc-returns-api": ["svc-order-orchestrator","svc-refund","svc-auth"],
+    "svc-gifting-api": ["svc-giftcard","svc-catalog-api","svc-auth"],
+    "svc-loyalty-api": ["svc-loyalty-engine","svc-auth"],
+    "svc-address-api": ["svc-geo","svc-auth"],
+    "svc-storefront-api": ["svc-catalog-api","svc-pricing","svc-media","svc-auth"],
+    "svc-shipping-rates": ["svc-config","svc-geo"],
+    "svc-currency": ["svc-config"],
+    "svc-allocator": ["svc-warehouse-sync","svc-config","svc-auth"],
+    "svc-media": ["svc-config"],
+    "svc-ratings": ["svc-auth"],
+    "svc-giftcard": ["svc-ledger","svc-config","svc-auth"],
+    "svc-refund": ["svc-payments","svc-ledger","svc-auth"],
+    "svc-dispute": ["svc-fraud","svc-auth"],
+    "svc-loyalty-engine": ["svc-config"],
+    "svc-kms": ["svc-audit"],
+    "svc-ratelimit": ["svc-config"],
+    "svc-schema-registry": ["svc-config"],
+    "svc-geo": ["svc-config"],
+    "svc-metrics-agg": ["svc-audit"],
+    "svc-token-cache": ["svc-secrets","svc-config"],
+    "svc-push-dispatch": ["svc-config"],
+    "svc-webhook-sender": ["svc-config"],
+    "svc-export-worker": ["svc-analytics-ingest"],
+    "svc-reindex-worker": ["svc-config"],
+    "svc-ledger-archiver": ["svc-audit"],
+})
+DEPS["svc-notification"] = DEPS["svc-notification"] + ["svc-push-dispatch","svc-webhook-sender"]
+DEPS["svc-payments"] = DEPS["svc-payments"] + ["svc-currency"]
+DEPS["svc-auth"] = DEPS["svc-auth"] + ["svc-token-cache","svc-kms"]
+DEPS["svc-order-orchestrator"] = DEPS["svc-order-orchestrator"] + ["svc-allocator"]
+DEPS["svc-catalog-api"] = DEPS["svc-catalog-api"] + ["svc-media","svc-ratings"]
+
 for s in SVC:
     DEPS.setdefault(s[0], [])
 

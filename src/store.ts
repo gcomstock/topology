@@ -126,14 +126,23 @@ export const useStore = create<AppState>((set, get) => ({
   blastSet: new Set(),
   select: (id) => {
     const g = get().graph
-    const blastSet = id && g ? new Set(blastRadius(g, id).keys()) : new Set<string>()
+    // Selection keeps the downstream blast set bright (everything else dims).
+    const blastSet = id && g ? new Set([id, ...blastRadius(g, id).keys()]) : new Set<string>()
     set({ selectedId: id, selectedEdgeId: null, blastSet })
   },
   setHovered: (id) => {
     const g = get().graph
-    const focus = id ?? get().selectedId
-    const blastSet = focus && g ? new Set(blastRadius(g, focus).keys()) : new Set<string>()
-    set({ hoveredId: id, blastSet })
+    if (id && g) {
+      // Hover isolates the directly-connected neighbors (both directions) and
+      // dims everything else hard — "show me just what this touches".
+      const set1 = new Set<string>([id, ...(g.downstream[id] ?? []), ...(g.upstream[id] ?? [])])
+      set({ hoveredId: id, blastSet: set1 })
+      return
+    }
+    // No hover: fall back to the selection's blast set (or clear).
+    const sel = get().selectedId
+    const blastSet = sel && g ? new Set([sel, ...blastRadius(g, sel).keys()]) : new Set<string>()
+    set({ hoveredId: null, blastSet })
   },
 
   diagramOpen: false,

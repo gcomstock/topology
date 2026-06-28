@@ -161,6 +161,9 @@ a:hover {
 .node-label.priority {
   border-color: var(--warning);
 }
+.node-label.dim {
+  opacity: 0.12;
+}
 
 .subtle {
   color: var(--text-muted);

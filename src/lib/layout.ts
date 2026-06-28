@@ -87,7 +87,7 @@ export function organicLayout(topo: Topology): Record<string, NodePosition> {
 // Each layer is a horizontal X–Z shelf; within a shelf nodes are grid-placed and
 // barycenter-ordered so connected nodes align across layers (short, mostly
 // vertical edges). Computed once, then frozen.
-const LAYER_GAP = 7 // world-Y between adjacent layers (clear floor separation)
+const LAYER_GAP = 5.4 // world-Y between adjacent layers (clear floor separation)
 const SPACING_X = 3.4
 const SPACING_Z = 3.2
 

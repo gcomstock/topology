@@ -1,7 +1,7 @@
 // Shared node-geometry constants so pyramids, labels, and event bubbles agree
 // on how tall a node is.
 
-export const STEP_H = 0.32
+export const STEP_H = 0.2
 export const BASE_W = 0.95
 
 // Criticality is read as 3 levels (the common Tier-0 / Tier-1 / Tier-2 scheme),
