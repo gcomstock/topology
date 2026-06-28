@@ -1,7 +1,14 @@
 import { create } from 'zustand'
 import type { AppData, NodePosition } from './types'
 import { themes, type ThemeName, applyThemeToDOM } from './theme'
-import { computeLayout, layoutBounds, type LayoutMode } from './lib/layout'
+import {
+  computeLayout,
+  groupedLayout,
+  layoutBounds,
+  type LayoutMode,
+  type GroupAttr,
+  type GroupAnchor,
+} from './lib/layout'
 import {
   buildGraphIndex,
   blastRadius,
@@ -12,6 +19,15 @@ import {
 import { timestampsToMs, msToClock } from './lib/timeseries'
 
 export type CompareMode = 'off' | 'staging' | 'committed'
+
+// Compute node positions for a mode, plus zone anchors when grouped (else []).
+function layoutFor(topo: AppData['topology'], mode: LayoutMode, groupBy: GroupAttr) {
+  if (mode === 'grouped') {
+    const { positions, anchors } = groupedLayout(topo, groupBy)
+    return { positions, groupAnchors: anchors }
+  }
+  return { positions: computeLayout(topo, mode, groupBy), groupAnchors: [] as GroupAnchor[] }
+}
 
 interface AppState {
   // --- data ---
@@ -29,6 +45,9 @@ interface AppState {
   // --- layout ---
   layoutMode: LayoutMode
   setLayoutMode: (m: LayoutMode) => void
+  groupBy: GroupAttr
+  setGroupBy: (g: GroupAttr) => void
+  groupAnchors: GroupAnchor[] // zone anchors, populated only in grouped mode
 
   // --- clock ---
   clock: number // fractional index into timestamps
@@ -93,8 +112,20 @@ export const useStore = create<AppState>((set, get) => ({
       set({ layoutMode: m })
       return
     }
-    const positions = computeLayout(data.topology, m)
-    set({ layoutMode: m, positions, bounds: layoutBounds(positions) })
+    const { positions, groupAnchors } = layoutFor(data.topology, m, get().groupBy)
+    set({ layoutMode: m, positions, groupAnchors, bounds: layoutBounds(positions) })
+  },
+  groupBy: (localStorage.getItem('groupBy') as GroupAttr) || 'team',
+  groupAnchors: [],
+  setGroupBy: (g) => {
+    localStorage.setItem('groupBy', g)
+    const data = get().data
+    if (!data || get().layoutMode !== 'grouped') {
+      set({ groupBy: g })
+      return
+    }
+    const { positions, anchors } = groupedLayout(data.topology, g)
+    set({ groupBy: g, positions, groupAnchors: anchors, bounds: layoutBounds(positions) })
   },
 
   clock: 0,
@@ -170,7 +201,7 @@ export const useStore = create<AppState>((set, get) => ({
   setCompareIds: (ids) => set({ compareIds: ids }),
 
   init: (data) => {
-    const positions = computeLayout(data.topology, get().layoutMode)
+    const { positions, groupAnchors } = layoutFor(data.topology, get().layoutMode, get().groupBy)
     const tsMs = timestampsToMs(data.timeseries.timestamps)
     const lastIndex = tsMs.length - 1
     const graph = buildGraphIndex(data.topology)
@@ -182,6 +213,7 @@ export const useStore = create<AppState>((set, get) => ({
       data,
       tsMs,
       positions,
+      groupAnchors,
       bounds: layoutBounds(positions),
       graph,
       lastIndex,

@@ -10,6 +10,7 @@ import { Nodes } from './Nodes'
 import { Edges } from './Edges'
 import { Labels } from './Labels'
 import { EventBubbles } from './EventBubbles'
+import { AnchorLabels } from './AnchorLabels'
 import { CameraRig, controlsRef } from './CameraRig'
 
 // Fixed isometric camera poses per layout. The angle is LOCKED (no orbit) and the
@@ -22,18 +23,35 @@ const POSES: Record<
   // Low azimuth so the wide LR graph runs screen-horizontal (not a long diagonal).
   flow: { pos: [9, 20, 40], target: [0, 0, 0], zoom: 30 },
   organic: { pos: [12, 18, 28], target: [0, 0, 0], zoom: 22 },
+  // Grouped clusters spread in 2D → square-ish iso framing.
+  grouped: { pos: [20, 24, 30], target: [0, 0, 0], zoom: 18 },
   // Layered keeps its tall-stack framing (secondary mode).
   layered: { pos: [12, 26, 42], target: [0, 11, 0], zoom: 28 },
 }
 
+// Isometric offset (camera − target) used to frame the grouped clusters around
+// their own bounds center, with a zoom that adapts to each attribute's spread.
+const GROUPED_OFFSET: [number, number, number] = [16, 22, 26]
+
 export function resetView() {
   const c = controlsRef.current
   if (!c) return
-  const pose = POSES[useStore.getState().layoutMode] ?? POSES.flow
-  c.object.position.set(...pose.pos)
-  c.object.zoom = pose.zoom
+  const st = useStore.getState()
+  if (st.layoutMode === 'grouped') {
+    const b = st.bounds
+    const cx = (b.minX + b.maxX) / 2
+    const cz = (b.minY + b.maxY) / 2
+    const extent = Math.max(b.w, b.h, 4)
+    c.object.position.set(cx + GROUPED_OFFSET[0], GROUPED_OFFSET[1], cz + GROUPED_OFFSET[2])
+    c.object.zoom = Math.max(9, Math.min(48, 820 / (extent + 10)))
+    c.target.set(cx, 0, cz)
+  } else {
+    const pose = POSES[st.layoutMode] ?? POSES.flow
+    c.object.position.set(...pose.pos)
+    c.object.zoom = pose.zoom
+    c.target.set(...pose.target)
+  }
   c.object.updateProjectionMatrix()
-  c.target.set(...pose.target)
   c.update()
 }
 
@@ -42,12 +60,13 @@ export function Scene() {
   const data = useStore((s) => s.data)
   const select = useStore((s) => s.select)
   const layoutMode = useStore((s) => s.layoutMode)
+  const groupBy = useStore((s) => s.groupBy)
 
-  // Reframe to the locked pose whenever the layout mode changes (and on mount).
+  // Reframe to the locked pose whenever the layout (or grouping) changes.
   useEffect(() => {
     const id = requestAnimationFrame(resetView)
     return () => cancelAnimationFrame(id)
-  }, [layoutMode, data])
+  }, [layoutMode, groupBy, data])
 
   if (!data) return null
 
@@ -72,6 +91,7 @@ export function Scene() {
       <Edges />
       <Nodes />
       <Labels />
+      {layoutMode === 'grouped' && <AnchorLabels />}
       <EventBubbles />
 
       <CameraRig />

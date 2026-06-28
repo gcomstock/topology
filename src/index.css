@@ -165,6 +165,24 @@ a:hover {
   opacity: 0.12;
 }
 
+/* Grouped-layout zone headers (attribute anchors). */
+.zone-label {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-elevated) 55%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 9px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transform: translate(-50%, -50%);
+}
+
 .subtle {
   color: var(--text-muted);
 }

@@ -5,6 +5,5 @@ dist
 # gen_data.py scratch output (canonical copies live at repo root + public/data)
 data/
 # local verification drivers (headless browser smoke tests)
-drive.mjs
-drive-light.mjs
-probe.mjs
+drive*.mjs
+probe*.mjs

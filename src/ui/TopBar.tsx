@@ -4,6 +4,8 @@ import { resetView } from '../scene/Scene'
 export function TopBar() {
   const layoutMode = useStore((s) => s.layoutMode)
   const setLayoutMode = useStore((s) => s.setLayoutMode)
+  const groupBy = useStore((s) => s.groupBy)
+  const setGroupBy = useStore((s) => s.setGroupBy)
   const themeName = useStore((s) => s.themeName)
   const toggleTheme = useStore((s) => s.toggleTheme)
   const compareMode = useStore((s) => s.compareMode)
@@ -44,7 +46,24 @@ export function TopBar() {
         >
           organic
         </button>
+        <button
+          className={layoutMode === 'grouped' ? 'active' : ''}
+          onClick={() => setLayoutMode('grouped')}
+          title="Cluster by shared attribute (team / region / datastore)"
+        >
+          grouped
+        </button>
       </div>
+
+      {layoutMode === 'grouped' && (
+        <div className="seg" title="Group services by">
+          {(['team', 'region', 'datastore'] as const).map((g) => (
+            <button key={g} className={groupBy === g ? 'active' : ''} onClick={() => setGroupBy(g)}>
+              {g}
+            </button>
+          ))}
+        </div>
+      )}
 
       {compareMode === 'off' ? (
         <button onClick={startCompare} title="Compare services">
