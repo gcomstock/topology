@@ -4,6 +4,12 @@
   --scrub-h: 64px;
 }
 
+/* drei <Html> wrapper for scene labels — must not intercept pointer events, so
+   hover/click reach the 3D blocks underneath (only the blocks are interactive). */
+.r3f-html-passthrough {
+  pointer-events: none !important;
+}
+
 /* ---------- Top bar ---------- */
 .topbar {
   height: var(--topbar-h);
@@ -497,16 +503,21 @@
   color: var(--text-primary);
 }
 
-/* diagram thumbnail */
+/* inferred-diagram — full panel width when a node is open */
 .diagram-thumb {
-  width: 280px;
-  height: 280px;
+  width: 100%;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-elevated-2);
   cursor: zoom-in;
   position: relative;
   overflow: hidden;
+  line-height: 0;
+}
+.diagram-thumb svg {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 .diagram-thumb .expand-hint {
   position: absolute;

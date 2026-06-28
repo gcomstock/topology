@@ -13,45 +13,54 @@ import { EventBubbles } from './EventBubbles'
 import { AnchorLabels } from './AnchorLabels'
 import { CameraRig, controlsRef } from './CameraRig'
 
-// Fixed isometric camera poses per layout. The angle is LOCKED (no orbit) and the
-// camera is ORTHOGRAPHIC — a true 3/4 isometric so depth doesn't shrink distant
-// nodes (denser, more legible). `zoom` = pixels per world unit.
-const POSES: Record<
+// Isometric camera framing per layout. The angle is LOCKED (no orbit) and the
+// camera is ORTHOGRAPHIC. `off` = camera−target direction (magnitude only sets
+// clip depth); `targetY`/`yTop` describe the vertical extent to frame. The zoom
+// is computed to FIT the layout into the actual viewport (measured), filled tight
+// so each chart opens zoomed-in.
+const FRAMES: Record<
   string,
-  { pos: [number, number, number]; target: [number, number, number]; zoom: number }
+  { off: [number, number, number]; targetY: number; yTop: number }
 > = {
   // Low azimuth so the wide LR graph runs screen-horizontal (not a long diagonal).
-  flow: { pos: [9, 20, 40], target: [0, 0, 0], zoom: 30 },
-  organic: { pos: [12, 18, 28], target: [0, 0, 0], zoom: 22 },
-  // Grouped clusters spread in 2D → square-ish iso framing.
-  grouped: { pos: [20, 24, 30], target: [0, 0, 0], zoom: 18 },
-  // Layered keeps its tall-stack framing (secondary mode).
-  layered: { pos: [12, 26, 42], target: [0, 11, 0], zoom: 28 },
+  flow: { off: [9, 20, 40], targetY: 0, yTop: 3.6 },
+  organic: { off: [12, 18, 28], targetY: 0, yTop: 3.6 },
+  grouped: { off: [16, 22, 26], targetY: 0, yTop: 3.6 },
+  layered: { off: [12, 26, 42], targetY: 11, yTop: 24 },
 }
 
-// Isometric offset (camera − target) used to frame the grouped clusters around
-// their own bounds center, with a zoom that adapts to each attribute's spread.
-const GROUPED_OFFSET: [number, number, number] = [16, 22, 26]
+// >1 overfills the viewport (zoomed in, edges/sky cropped but pannable).
+const FILL = 1.3
 
 export function resetView() {
   const c = controlsRef.current
-  if (!c) return
+  if (!c || !c.object) return
   const st = useStore.getState()
-  if (st.layoutMode === 'grouped') {
-    const b = st.bounds
-    const cx = (b.minX + b.maxX) / 2
-    const cz = (b.minY + b.maxY) / 2
-    const extent = Math.max(b.w, b.h, 4)
-    c.object.position.set(cx + GROUPED_OFFSET[0], GROUPED_OFFSET[1], cz + GROUPED_OFFSET[2])
-    c.object.zoom = Math.max(9, Math.min(48, 820 / (extent + 10)))
-    c.target.set(cx, 0, cz)
-  } else {
-    const pose = POSES[st.layoutMode] ?? POSES.flow
-    c.object.position.set(...pose.pos)
-    c.object.zoom = pose.zoom
-    c.target.set(...pose.target)
-  }
-  c.object.updateProjectionMatrix()
+  const b = st.bounds
+  const f = FRAMES[st.layoutMode] ?? FRAMES.flow
+  const cx = (b.minX + b.maxX) / 2
+  const cz = (b.minY + b.maxY) / 2
+  const cam = c.object as THREE.OrthographicCamera
+
+  cam.position.set(cx + f.off[0], f.targetY + f.off[1], cz + f.off[2])
+  c.target.set(cx, f.targetY, cz)
+  cam.zoom = 1
+  cam.updateProjectionMatrix()
+  c.update() // orient toward target
+  cam.updateMatrixWorld()
+
+  // Project the layout's bounding box corners and pick the zoom that fits them
+  // into the measured viewport (NDC ∈ [-1,1]).
+  let maxAbs = 1e-4
+  const v = new THREE.Vector3()
+  for (const X of [b.minX, b.maxX])
+    for (const Y of [0, f.yTop])
+      for (const Z of [b.minY, b.maxY]) {
+        v.set(X, Y, Z).project(cam)
+        maxAbs = Math.max(maxAbs, Math.abs(v.x), Math.abs(v.y))
+      }
+  cam.zoom = Math.max(5, Math.min(200, FILL / maxAbs))
+  cam.updateProjectionMatrix()
   c.update()
 }
 
@@ -61,15 +70,22 @@ export function Scene() {
   const select = useStore((s) => s.select)
   const layoutMode = useStore((s) => s.layoutMode)
 
-  // Reframe to the locked pose whenever the layout changes (and on mount).
+  // Reframe to the locked pose whenever the layout changes (and on mount). The
+  // controls ref isn't set on the first frame, so poll until it's ready.
   useEffect(() => {
-    const id = requestAnimationFrame(resetView)
-    return () => cancelAnimationFrame(id)
+    let raf = 0
+    let tries = 0
+    const tick = () => {
+      if (controlsRef.current?.object) resetView()
+      else if (tries++ < 90) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
   }, [layoutMode, data])
 
   if (!data) return null
 
-  const initial = POSES[layoutMode] ?? POSES.flow
+  const initial = FRAMES[layoutMode] ?? FRAMES.flow
 
   return (
     <Canvas
@@ -77,7 +93,8 @@ export function Scene() {
       onPointerMissed={() => select(null)}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
     >
-      <OrthographicCamera makeDefault position={initial.pos} zoom={initial.zoom} near={-100} far={600} />
+      {/* Initial pose; resetView() refits zoom to the measured viewport on mount. */}
+      <OrthographicCamera makeDefault position={initial.off} zoom={20} near={-100} far={600} />
       <color attach="background" args={[theme.bgBase]} />
 
       {/* No shadows (perf + visual simplicity). Light is just for the node solids. */}

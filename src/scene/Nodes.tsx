@@ -1,13 +1,12 @@
 import { useMemo, useRef } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useStore } from '../store'
 import { useTheme } from '../hooks'
 import { healthColor } from '../lib/color'
 import { sampleAt, nearestIndex } from '../lib/timeseries'
 import { trafficToHeight } from '../lib/traffic'
-import { BASE_W, tierLabel } from './nodeShape'
+import { BASE_W } from './nodeShape'
 import type { Service } from '../types'
 
 // A service is a rectangular BAR:
@@ -72,7 +71,6 @@ function TrafficBar({ service }: { service: Service }) {
   // Live bar height from current-clock traffic (re-renders on clock change).
   const actualTraffic = sampleAt(series?.golden.traffic, clock)
   const actualH = Math.max(0.04, trafficToHeight(actualTraffic, domain))
-  const topH = Math.max(actualH, expectedH)
 
   // useFrame only drives the glow pulse — height comes from React render above.
   useFrame((state) => {
@@ -153,17 +151,6 @@ function TrafficBar({ service }: { service: Service }) {
         />
       </lineSegments>
 
-      {/* Tier tag — only on hover (kept off the overview to reduce clutter). */}
-      {hovered && (
-        <Html
-          position={[0, topH + 0.14, 0]}
-          center
-          zIndexRange={[50, 0]}
-          style={{ pointerEvents: 'none' }}
-        >
-          <div className="tier-tag">{tierLabel(service.tier)}</div>
-        </Html>
-      )}
     </group>
   )
 }

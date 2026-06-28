@@ -47,6 +47,7 @@ export function EventBubbles() {
             position={[p.x, top, p.y]}
             center
             zIndexRange={[120, 10]}
+            wrapperClass="r3f-html-passthrough"
             style={{ pointerEvents: 'none' }}
           >
             <div

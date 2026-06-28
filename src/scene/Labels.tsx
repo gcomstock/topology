@@ -35,6 +35,7 @@ export function Labels() {
             position={[pos.x, top, pos.y]}
             center
             zIndexRange={associated ? [100, 0] : [40, 0]}
+            wrapperClass="r3f-html-passthrough"
             style={{ pointerEvents: 'none' }}
           >
             <div className={cls}>{s.name}</div>
