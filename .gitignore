@@ -2,6 +2,8 @@ node_modules
 dist
 .DS_Store
 *.local
+# gen_data.py scratch output (canonical copies live at repo root + public/data)
+data/
 # local verification drivers (headless browser smoke tests)
 drive.mjs
 drive-light.mjs
