@@ -132,8 +132,9 @@ function TrafficBar({ service }: { service: Service }) {
         />
       </mesh>
 
-      {/* Expected-traffic cage — static wireframe the fill is read against. */}
-      <lineSegments position={[0, expectedH / 2, 0]} scale={[1, expectedH, 1]}>
+      {/* Expected-traffic cage — static wireframe the fill is read against.
+          raycast disabled so only the solid bar captures hover/click. */}
+      <lineSegments position={[0, expectedH / 2, 0]} scale={[1, expectedH, 1]} raycast={() => null}>
         <edgesGeometry args={[cageGeom]} />
         <lineBasicMaterial
           color={selected || hovered ? outlineColor : theme.textMuted}
@@ -142,7 +143,7 @@ function TrafficBar({ service }: { service: Service }) {
         />
       </lineSegments>
       {/* Emphasized "expected" rim — the reference line the fill crosses. */}
-      <lineSegments position={[0, expectedH, 0]}>
+      <lineSegments position={[0, expectedH, 0]} raycast={() => null}>
         <edgesGeometry args={[rimGeom]} />
         <lineBasicMaterial
           color={selected || hovered ? outlineColor : theme.textPrimary}
