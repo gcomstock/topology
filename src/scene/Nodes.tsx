@@ -117,7 +117,7 @@ function TrafficBar({ service }: { service: Service }) {
 
   return (
     <group
-      position={[pos.x, pos.elev ?? 0, pos.y]}
+      position={[pos.x, 0, pos.y]}
       onClick={onClick}
       onPointerOver={(e) => {
         if (compareMode !== 'staging' && !interactive) return // dimmed → inert

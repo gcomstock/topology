@@ -31,20 +31,6 @@ export function TopBar() {
           flow
         </button>
         <button
-          className={layoutMode === 'layered' ? 'active' : ''}
-          onClick={() => setLayoutMode('layered')}
-          title="Layered by dependency depth (altitude = layer)"
-        >
-          layered
-        </button>
-        <button
-          className={layoutMode === 'organic' ? 'active' : ''}
-          onClick={() => setLayoutMode('organic')}
-          title="Force-directed clusters"
-        >
-          organic
-        </button>
-        <button
           className={layoutMode === 'grouped' ? 'active' : ''}
           onClick={() => setLayoutMode('grouped')}
           title="Cluster by owning team"

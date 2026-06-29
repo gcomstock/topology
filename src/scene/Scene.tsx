@@ -24,9 +24,8 @@ const FRAMES: Record<
 > = {
   // Low azimuth so the wide LR graph runs screen-horizontal (not a long diagonal).
   flow: { off: [9, 20, 40], targetY: 0, yTop: 3.6 },
-  organic: { off: [12, 18, 28], targetY: 0, yTop: 3.6 },
+  // Grouped clusters spread in 2D → square-ish iso framing.
   grouped: { off: [16, 22, 26], targetY: 0, yTop: 3.6 },
-  layered: { off: [12, 26, 42], targetY: 11, yTop: 24 },
 }
 
 // >1 overfills the viewport (zoomed in, edges/sky cropped but pannable).
@@ -102,8 +101,8 @@ export function Scene() {
       <directionalLight position={[10, 22, 10]} intensity={1.3} />
       <hemisphereLight args={[theme.accentBlue, theme.bgBase, 0.25]} />
 
-      {/* The line grid floor (sinks + recolors with burn) — flat layouts only. */}
-      {layoutMode !== 'layered' && <GridField />}
+      {/* The flat reference grid the bars rest on. */}
+      <GridField />
       <Edges />
       <Nodes />
       <Labels />

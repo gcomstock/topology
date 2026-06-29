@@ -22,7 +22,7 @@ export function Labels() {
         const pos = positions[s.id]
         if (!pos) return null
         const series = data?.timeseries.perService[s.id]
-        const top = (pos.elev ?? 0) + barHeight(series, clock, domain) + 0.42 // clear tier tag
+        const top = barHeight(series, clock, domain) + 0.42 // clear the bar top
         const associated = !dimming || s.id === selectedId || blast.has(s.id)
         const cls =
           'node-label' +

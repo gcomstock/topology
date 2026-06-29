@@ -40,7 +40,7 @@ export function EventBubbles() {
         if (dt > WINDOW_MS) return null
         const opacity = 1 - dt / WINDOW_MS
         const series = data?.timeseries.perService[ev.serviceId]
-        const top = (p.elev ?? 0) + barHeight(series, clock, domain) + 0.78
+        const top = barHeight(series, clock, domain) + 0.78
         return (
           <Html
             key={ev.id}

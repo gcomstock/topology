@@ -148,7 +148,7 @@ Four **unrelated** eu-west-1 services — `search-api`, `recommendation-engine`,
 
 These are intentionally absent from the JSON; the app computes them:
 
-- **Layout positions** `{x,y}` — via dagre (flow-ordering) or d3-force (organic clusters); computed once, frozen.
+- **Layout positions** `{x,y}` — flow (dagre LR, snapped to the grid) or grouped-by-team; computed once, frozen.
 - **Priority score** — `criticality × fastBurnRate × blastRadius` at the current time; drives the ranked sidebar + glow. Fixed formula, org-wide.
 - **Blast radius** — downstream propagation set via graph traversal; drives the path highlight.
 - **Terrain height field** — from `burnFast`/`burnSlow` per the formula above.
@@ -196,7 +196,7 @@ and publishes `dist/` to Pages. The Vite `base` is taken from the repo name via
 
 ### App architecture (where things live)
 - `src/store.ts` — single zustand store: global clock, selection, theme, layout mode, compare set, priority, blast radius.
-- `src/lib/` — pure logic: `layout` (dagre/d3-force, frozen), `timeseries` (clock↔index interpolation), `graph` (blast radius + priority score), `color` (health ramp), `hashRoute`, `data` (runtime fetch).
+- `src/lib/` — pure logic: `layout` (dagre flow + grouped-by-team, frozen), `timeseries` (clock↔index interpolation), `graph` (blast radius + priority score), `color` (health ramp), `hashRoute`, `data` (runtime fetch).
 - `src/scene/` — the R3F scene: `Terrain` (downward health heightfield — see the sign note in that file), `Nodes` (stepped pyramids), `Edges` (animated dashed health lines), `Labels`, `EventBubbles`, `CameraRig`, `Scene` (lights + bloom + controls).
 - `src/ui/` — DOM overlay: `DetailPanel`, `Sidebar` (priority ranking), `Scrubber`, `PastBanner`, `CompareTray`/`CompareView`, `DiagramModal`, `ServiceDiagram`.
 - `src/theme.ts` + `src/index.css` — theme tokens mirrored to both CSS vars and the 3D materials.

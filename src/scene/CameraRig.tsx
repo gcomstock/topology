@@ -28,7 +28,7 @@ export function CameraRig() {
       const p = positions[selectedId]
       if (!p) return
       everSelected.current = true
-      const t = new THREE.Vector3(p.x, p.elev ?? 0, p.y)
+      const t = new THREE.Vector3(p.x, 0, p.y)
       // Shift the target along screen-right by half the panel width so the node
       // sits centered in the uncovered area (ortho: world units = pixels / zoom).
       const panelW =
