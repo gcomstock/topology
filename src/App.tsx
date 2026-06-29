@@ -59,10 +59,11 @@ export default function App() {
           </div>
         )}
 
-        <div
-          className="canvas-host"
-          style={{ right: panelOpen ? 'var(--panel-w)' : comparing ? '50%' : '0' }}
-        >
+        {/* The detail panel OVERLAYS the canvas (no resize) — resizing the GL
+            canvas mid-transition reflows the scene in one jump (a visible "pop").
+            CameraRig instead pans the focused node into the visible region.
+            Compare still splits the view. */}
+        <div className="canvas-host" style={{ right: comparing ? '50%' : '0' }}>
           <Scene />
         </div>
 
