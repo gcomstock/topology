@@ -10,6 +10,25 @@ import { trafficToHeight } from '../lib/traffic'
 import { BASE_W } from './nodeShape'
 import type { Service } from '../types'
 
+// Shared bar geometry with per-face brightness baked into vertex colors, so each
+// visible face reads at a different value → the bar looks 3D regardless of light
+// direction. Top brightest, the front ("bottom") face mid, the right face
+// darkest. BoxGeometry face/vertex order: +x, -x, +y, -y, +z, -z (4 verts each).
+const BAR_GEO = (() => {
+  const g = new THREE.BoxGeometry(BASE_W, 1, BASE_W)
+  //              +x(right) -x   +y(top) -y   +z(front) -z
+  const faceB = [0.55, 0.6, 1.0, 0.6, 0.82, 0.55]
+  const colors = new Float32Array(24 * 3)
+  for (let f = 0; f < 6; f++) {
+    for (let i = 0; i < 4; i++) {
+      const o = (f * 4 + i) * 3
+      colors[o] = colors[o + 1] = colors[o + 2] = faceB[f]
+    }
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  return g
+})()
+
 // A service is a rectangular BAR:
 //   height = relative traffic (live, animates on scrub)
 //   color  = aggregate SLO health (green→amber→red); gray = no data
@@ -131,12 +150,13 @@ function TrafficBar({ service }: { service: Service }) {
         document.body.style.cursor = 'auto'
       }}
     >
-      {/* Solid fill bar — a unit cube scaled in Y from the base plane up. */}
-      <mesh position={[0, actualH / 2, 0]} scale={[1, actualH, 1]}>
-        <boxGeometry args={[BASE_W, 1, BASE_W]} />
+      {/* Solid fill bar — a unit cube scaled in Y from the base plane up. Per-face
+          vertex colors shade the visible faces to distinct values (3D read). */}
+      <mesh geometry={BAR_GEO} position={[0, actualH / 2, 0]} scale={[1, actualH, 1]}>
         <meshStandardMaterial
           ref={matRef}
           color={baseColor}
+          vertexColors
           emissive={glowColor}
           emissiveIntensity={0}
           metalness={0.25}
