@@ -174,8 +174,9 @@ export const useStore = create<AppState>((set, get) => ({
       return
     }
     if (id && g) {
-      // No selection: hovering isolates the node's directly-connected neighbors.
-      const set1 = new Set<string>([id, ...(g.downstream[id] ?? []), ...(g.upstream[id] ?? [])])
+      // No selection: preview the SAME topology that clicking would commit — the
+      // node + its blast radius — so hover and click never disagree.
+      const set1 = new Set<string>([id, ...blastRadius(g, id).keys()])
       set({ hoveredId: id, blastSet: set1 })
       return
     }
