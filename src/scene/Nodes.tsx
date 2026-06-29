@@ -98,9 +98,6 @@ function TrafficBar({ service }: { service: Service }) {
   }
 
   const cageGeom = useMemo(() => new THREE.BoxGeometry(BASE_W, 1, BASE_W), [])
-  // A flat square rim (slightly larger) marking the expected height — a bright
-  // "you are here" reference the fill bar visibly pokes above / falls short of.
-  const rimGeom = useMemo(() => new THREE.BoxGeometry(BASE_W * 1.12, 0.001, BASE_W * 1.12), [])
 
   // Box-edge segments for the fill BAR (selection/hover outline). Only the bar is
   // outlined — never the expected cage — at a doubled stroke width.
@@ -146,16 +143,11 @@ function TrafficBar({ service }: { service: Service }) {
         />
       </mesh>
 
-      {/* Expected-traffic cage — static neutral wireframe (never tinted by
-          selection; the fill is read against it). raycast off. */}
+      {/* Expected-traffic cage — a single white wireframe the fill is read
+          against (never tinted by selection). raycast off. */}
       <lineSegments position={[0, expectedH / 2, 0]} scale={[1, expectedH, 1]} raycast={() => null}>
         <edgesGeometry args={[cageGeom]} />
-        <lineBasicMaterial color={theme.textMuted} transparent opacity={0.8 * dim} />
-      </lineSegments>
-      {/* Emphasized "expected" rim — the reference line the fill crosses. */}
-      <lineSegments position={[0, expectedH, 0]} raycast={() => null}>
-        <edgesGeometry args={[rimGeom]} />
-        <lineBasicMaterial color={theme.textPrimary} transparent opacity={0.9 * dim} />
+        <lineBasicMaterial color={theme.textPrimary} transparent opacity={0.85 * dim} />
       </lineSegments>
       {/* Selection/hover outline — on the BAR only, doubled stroke width. */}
       {(selected || hovered || inCompare) && (

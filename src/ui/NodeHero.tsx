@@ -16,10 +16,6 @@ export function NodeHero({ service }: { service: Service }) {
   const clock = useStore((s) => s.clock)
   const domain = useStore((s) => s.trafficDomain)
 
-  const priorityList = useStore((s) => s.priorityList)
-  const priIdx = priorityList.findIndex((p) => p.serviceId === service.id)
-  const priority = priIdx >= 0 ? priorityList[priIdx] : null
-
   const series = data.timeseries.perService[service.id]
   const health = sampleAt(series?.health, clock)
   const current = sampleAt(series?.golden.traffic, clock)
@@ -93,20 +89,6 @@ export function NodeHero({ service }: { service: Service }) {
             <>Too few samples to trust — rendered gray.</>
           )}
         </div>
-
-        {priority && (
-          <div className="nh-priority">
-            <div className="nh-pri-score">{priority.score.toFixed(1)}</div>
-            <div className="nh-pri-text">
-              <div className="nh-pri-lbl">
-                priority score · rank #{priIdx + 1} of {priorityList.length}
-              </div>
-              <div className="nh-pri-explain">
-                criticality × acute burn rate × blast radius — where to look first during an incident
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

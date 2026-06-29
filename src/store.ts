@@ -66,6 +66,11 @@ interface AppState {
   blastSet: Set<string> // downstream-affected highlight set (from hover ?? selection)
   select: (id: string | null) => void
   setHovered: (id: string | null) => void
+  // Request the camera pan to center a node (e.g. hovering a Top Concerns row).
+  // A counter is bumped so repeat requests for the same id still fire.
+  panToId: string | null
+  panToSeq: number
+  panTo: (id: string | null) => void
 
   // --- diagram modal ---
   diagramOpen: boolean
@@ -182,6 +187,9 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ hoveredId: null, blastSet: new Set<string>() })
   },
+  panToId: null,
+  panToSeq: 0,
+  panTo: (id) => set((s) => ({ panToId: id, panToSeq: s.panToSeq + 1 })),
 
   diagramOpen: false,
   selectedEdgeId: null,

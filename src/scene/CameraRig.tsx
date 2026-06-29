@@ -15,31 +15,40 @@ export function CameraRig() {
   const selectedId = useStore((s) => s.selectedId)
   const positions = useStore((s) => s.positions)
   const bounds = useStore((s) => s.bounds)
+  const panToId = useStore((s) => s.panToId)
+  const panToSeq = useStore((s) => s.panToSeq)
   const { camera } = useThree()
   const desiredTarget = useRef(new THREE.Vector3())
   const animating = useRef(false)
   const everSelected = useRef(false)
 
-  useEffect(() => {
-    const controls = controlsRef.current
-    if (!controls) return
-
-    if (selectedId) {
-      const p = positions[selectedId]
-      if (!p) return
-      everSelected.current = true
-      const t = new THREE.Vector3(p.x, 0, p.y)
-      // Shift the target along screen-right by half the panel width so the node
-      // sits centered in the uncovered area (ortho: world units = pixels / zoom).
+  // Target that centers a node in the VISIBLE region — shifted along screen-right
+  // by half the panel width when the detail panel covers the right side
+  // (ortho: world units = pixels / zoom).
+  const centerTargetFor = (x: number, z: number, panelOpen: boolean) => {
+    const t = new THREE.Vector3(x, 0, z)
+    if (panelOpen) {
       const panelW =
         parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--panel-w')) || 720
       const zoom = (camera as THREE.OrthographicCamera).zoom || 1
       const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0).normalize()
       t.addScaledVector(right, panelW / 2 / zoom)
-      desiredTarget.current.copy(t)
+    }
+    return t
+  }
+
+  // Pan on selection: center the node (offset for the open panel) or recenter the
+  // overview on dismiss.
+  useEffect(() => {
+    const controls = controlsRef.current
+    if (!controls) return
+    if (selectedId) {
+      const p = positions[selectedId]
+      if (!p) return
+      everSelected.current = true
+      desiredTarget.current.copy(centerTargetFor(p.x, p.y, true))
       animating.current = true
     } else if (everSelected.current) {
-      // Dismiss → recenter the overview (keep current height/angle).
       desiredTarget.current.set(
         (bounds.minX + bounds.maxX) / 2,
         controls.target.y,
@@ -47,7 +56,19 @@ export function CameraRig() {
       )
       animating.current = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, positions, bounds, camera])
+
+  // Pan on request (hovering a Top Concerns row) — center that node.
+  useEffect(() => {
+    const controls = controlsRef.current
+    if (!controls || !panToId) return
+    const p = positions[panToId]
+    if (!p) return
+    desiredTarget.current.copy(centerTargetFor(p.x, p.y, !!selectedId))
+    animating.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panToSeq])
 
   useFrame(() => {
     const controls = controlsRef.current
