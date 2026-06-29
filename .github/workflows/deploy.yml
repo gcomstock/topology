@@ -23,9 +23,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      # Provisions the Pages site on first run, so no manual Settings toggle is
+      # needed (it enables Pages with "GitHub Actions" as the source).
+      - uses: actions/configure-pages@v5
       - run: npm ci
-      # VITE_BASE must match the repo path the site is served from.
-      # Defaults to "/topology/"; override here if the repo is named differently.
+      # base must match the repo path the site is served from, with a trailing
+      # slash (Vite requirement): e.g. "/topology/" for repo "topology".
       - run: npm run build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
